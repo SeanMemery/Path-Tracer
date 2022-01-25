@@ -1,0 +1,88 @@
+
+-------------------------------------------------------------
+
+Three main optical catagories of materials (based on electrical properties):
+1) Metals (Conductors)
+2) Dielectrics (Insulators)
+3) Semiconductors
+
+Semiconductors aren't often considered so materials can be broken down to:
+1) Metals (Immediately absorb all refracted light)
+2) Non-Metals (Refracted light is scattered/absorbed to some degree, then reflected back out)
+
+Relfected light is split into two catagories, diffuse and specular. 
+
+Bidirectional relfectance Distribution Function (BRDF) (f(l,v)):
+A function of light direction l and the view direction v representing the variation of light response on a surface
+Used to solve the reflectance equation for outgoing radiance at a point
+Lo(v) = Int[ f(l,v) x Li(l) (n.l) ] 
+{
+	Lo(v) = outgoing radiance
+	Int[] = integrating over all incoming radiances
+	Li(l) = incoming radiance along direction l
+	x = component wise RGB multiplication
+}
+
+
+-------------------------------------------------------------
+
+DIFFUSE
+Light leaving the material after being absorbed and bounced around
+For rendering purposes we often treat this light as leaving at the same point as entering
+Sub-Surface Scattering: when diffuse lighting leaves at a different point that it entered
+Leaves at reandom angle
+
+
+Lambert model is the most common diffuse term, the simplest BRDF, just a constant value
+F_lambert(l,v) = c_diff / pi
+c_diff = fraction of light reflected, or diffuse colour 
+
+
+-------------------------------------------------------------
+
+SPECULAR
+Light reflected off material
+Leaves at reflected angle with tighter randomness
+
+
+Microfacet Specular BRDF (used for specular lighting):
+The idea is that sufaces have micro geometry that is visibally small but still affects light
+Each point is trated as a perfect mirror relfecting all light in one outgoing direction
+The only microfacets that contribute are those with a normal exactly half-way between l and v
+
+f(l,v) = F(l,h) . G(l,v,h) . D(h)
+		-------------------------
+			4(n.l) . (n.v)
+{
+	h = normal of microfacet geometry
+	F(l,h) = Fresnal Reflectance, fraction of incoming light that is relfected rather than refracted
+		   = Surface's charachteristic specular colour, based on reflectance values for differetn materials and incidence angle
+		   = F_schlick(F0, l, h) = F0 + (1-F0)(1 - (l.h))^5, schlicks approximation for fresnal distributions of materials 
+
+	D(h) = microfacet normal distribution function, NDF, gives the concentration of microfacet normals pointing in a given direction, relative to surface area (determines the size and shape of highlight)
+		 = various options (google)
+
+	G(l,v,h) = Geometry Function, gives the chance that a microfacet with given orientation h is lit and visible (i.e. not shadowed or masked)
+			 = lots of options but best is the Smith Function Gs(l,v,h) = Gs1(l,h) . Gs1(v,h)
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+-------------------------------------------------------------
+
+
+
+
+
+

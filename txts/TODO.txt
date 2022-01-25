@@ -1,0 +1,130 @@
+TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO 
+
+ FEATURES FEATURES FEATURES
+ 1. opengl editing view, with full pathtracing option
+ - need way to turn maths spheres into groups of triangles
+ - lighting ? 
+ - Will probably make this a constantly refreshing low res path tracer image, can use 1 thread to update screen and get inputs, n-1 for texture
+	DONE: nicely done, very low res however, blame laptop or try to speed up more
+
+ 2. Would be better to implement paralellism with shared resources so there are no idle threads
+	DONE (somewhat)
+
+ 3. Add name input for saving render and FIX whatevers going on with saving render function (and hopefully save as png/jpg)
+	DONE: need to look into png saving though
+
+ 4. Add non-AA boxes, need to convert rays to object coord system, not too hard
+	DONE: was very hard but used quaternion to rotate ray dir and pos and do normal AABB intersects after
+
+ 5. Maybe scene mode should be rendered by having each thread handle a frame, should try sometime and compare
+
+ 6. Definitely need fullscreen with dropdown imgui panels, would look a lot better 
+	DONE
+
+ 7. Look at InitSystems again, probably a lot unnecessary
+
+ 8. Adaptive resolution, can look at time to make a frame, nmber of frames etc
+	DONE: surprisingly easy
+
+ 9. Look into keepign track of last shape id hit in renderer and skipping it in the intersect test, definitely removed self intersects and increased speed but what about dialectrics ?
+	DONE: SO GOOD, 30+% speed increase and can just check if shape is a dialectric and not do it
+	UNDONE: reconsidering, its a good speed up but its just not good for the renderer
+
+ 10. Change all ImGui buttons to check boxes, would look a lot nicer and wouldnt need to keep track of booleans
+	DONE
+
+ 11. Min Max view, display min max values as bboxes
+	DONE
+
+ 12. Change ScreenRange to allow summing of infinite screens, so keep adding screens and keep track of count to get average 
+
+ 13. Dont like RecHit, seems over complicated to have it hold mat_ptr
+	 Complication, tried to create context struct in renderer but would run into parallel programming difficulties
+
+ 14. Look into the whole currDepth == maxDepth problem in renderers
+	DONE problem is with lights but ive just removed the whole thing and it doesnt seem to impact performance very much, better without it 
+
+ 15. Change ALL floats to doubles (even vec3 ? ) 
+	DONE slight speedup, no noticable change to visuals but possibly
+
+ 16. Make scene serializable, shouldnt be too hard just call serialize on all objects and write to a json file
+	DONE 
+
+ 17. Look into sphere pdf function, lights seem far too dark
+
+
+ BUGS BUGS BUGS BUGS:
+ 1. Something crazy happeing with rendering:	
+	- Consistent backround col noise on AABBs 
+	- This stops within a certain distance from the camera (31?), causing a circle to highlight on the shape
+	FIXED: used isNear for AABB collision calc, must be floating point acc problem
+
+ 2. Not actually changing values of shapes in GloShapes, its reset to original each render    
+	FIXED: Check if scene is empty, if not dont reset values 
+
+ 3. Inconsistent shape selection															  
+	FIXED: AABB setCenter was incorrect, caused min to constantly flip
+
+ 4. Seems to get stuck at 0.25 ceompletion on large jobs (e.g. 100 samples, 1300 rays)
+	FIXED: Just needed to set _perRenderDone to double and use uint64_t for some values
+
+ 5. Problem with rendermode 3, random from single vector, where the back indSamp would get switched while a thread was working on it, 
+	then the ind value would refer to a previous max value thats gone now, VERY RARE
+	FIXED: Added an int to IndSamp: indicesInd, then when swapping an IndSamp with indices.back(), indicesInd is swapped too and used 
+
+ 6. rendermode 3 and 4 freeze on low pixel amounts, e.g. 4x4, says access error on indices[ind]
+	Worse, seems to happen often when getting to the end of any length, e.g. when I had prints on for 1k
+	- Did repeated tests at 16x16 on rendermode 3, would crash after the first dozen maybe with an access error on indSamp, the one just found from the vector, very strange
+	FIXED: Changed rendermode 3 completely, problem seemed to be from selecting the last index value then having it switched
+
+ 7. Sample limit just not working at all for rendermode 3 and 4, samples are reset it seems to 0
+	FIXED: Was just copying IndSamp's rather than modifying, changed to ptr
+
+ 8. Huge problems with scene rendering, incredibly inconsistent
+	FIXED: I think to do with setPixel function, honestly not sure
+
+ 9. When moving around in scene, position resets when switching back to PT
+	FIXED: _cam was being set in initEnvironment instead of resetEnvironment
+
+ 10. When changing resolution in scene view it freezes, strange as this was working before 
+	FIXED: Just needed to remake indices vectors A and B in renderScene
+
+ 11. Exit menu quit button isnt working when clicking on it, also when exiting with escape it causes the screen to breifly flick to render texture
+	FIXED: Needed to check in scene render loop if simstate had gone to exit
+
+ 12. Cant move around scene unless renderSettings has been opened 
+	FIXED: _deltaTime was only being set in RenderSettings, so was 0
+
+ 13. Reset environment button doesnt seem to work
+	FIXED: just had to delay resetEnvironment() call to renderPT() 
+
+ 14. Huge issue with normals on rotating cuboids, narrowed it down to a parrallel programming problem !  
+	FIXED: Was actually fairly obvious, was using a shared norm value so of course when that was changed sometimes a thread would have their value changed too
+
+ 15. Small issue with OBB reflections, was showing missing pixels in lights
+	FIXED: Was self intersecting, made tmin and tmax check for less than E rather than 0, much better, have done same for AABB amd triangle now
+
+ 16. Cant seem to click on models
+
+ 17. Linear AA is messed up, can see lines in image
+
+ 18. Still crashing on deleting lights
+	FIXED: problem was with how settings are updated in renderScene, it wasnt updating lowResSettings then making settings variable copy lowResSettings
+
+ 19. Big problem with spheres and direct lighting, seems to maybe collide with direct rays even when theyre going to other shapes. 
+	 When a sphere is a light, sometimes the colour is black on it, self collision ? 
+	 Interesting, when the sphere intersect function is changed to unclude a bounding box, spheres cast a square shadow
+	 FIXED: seemed to be from not normalizing the ray dir in targetPDF, still strange. The light error is unfixed, looks like there is NaN values being generated
+	 FIXED: There was a NaN error coming in the shere pdf_val formula, look into if that being done correctly
+
+20. Dielectrics broken in GPU 
+	FIXED: there was a problem with scattering pdf, it was being set to 0 when cos < 0, while normal pdf was set to 0.00001, so it was still going to 0 rather than 1 for specular rays
+
+21. Strange issues with importance sampling. AABB lights are way brighter than spheres, if they arent first in importance sampling list 
+
+/////////////////////////////////////////////////////////////
+
+22. Fix black screen issue	
+	- Missing something in screen setup ? 
+	- Needs to be glm::vec3 ? why
+

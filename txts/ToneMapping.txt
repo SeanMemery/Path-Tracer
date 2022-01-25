@@ -1,0 +1,36 @@
+
+Luminance = 0.2125R+0.7154G+0.0721B, for RGB radiance values
+
+Want to get L value used to scale the scenes luminance, 
+Lagard and de Rousiers, 2014 (pg. 85) method is:
+
+EV100 = log_2(L_avg * S / K)
+Lmax = 78 * 2^(EV100) / (qS)
+H = 1/L_max
+
+S is the Sensor sensitivity, 
+K is the reflected-light meter calibration constant, 
+q is the lens and vignetting attentuation, 
+H is the exposure 
+L_avg is the average scene luminance
+
+Use values:
+S = 100
+K = 12.5
+q = 0.65
+
+L_max = 9.6 * L_avg
+
+Therefore, final scaled luminance is 
+
+L' = H*L = L / L_max = L / (9.6 * L_avg)
+
+
+
+
+
+
+
+
+
+

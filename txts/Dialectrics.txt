@@ -1,0 +1,19 @@
+
+DIALECTRICS
+
+http://viclw17.github.io/2018/08/05/raytracing-dielectric-materials/
+
+Refractive Index: n, used in snells law for ratio of sin angle of incidence
+
+	sin(a_1)	n_1
+	-------- =  ---
+	sin(a_2)	n_2
+					  n_1	 1
+	Vaccum to mat ->  --- = ---
+					  n_2	n_d
+
+					  n_1	n_d
+	Mat ot vaccum ->  --- = ---
+					  n_2	 1
+
+

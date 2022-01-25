@@ -1,0 +1,15 @@
+
+
+Used to get estimate for integration.
+
+Says that the value of the the integral of a function f over a domain [a,b]
+is equal to the expected value of the the estimator:
+
+F_N = (b - a)/N sum^N_i( f( X_i ) ) 
+
+i.e. int^b_a(f(x)) = E[ F_N ]
+
+This is true for uniform random number X, so for a random number X from an 
+arbitrary pdf p(x)
+
+F_N = 1/N sum^N_i( f(X_i) / p(X_i) )

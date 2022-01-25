@@ -1,0 +1,103 @@
+----------------------------------------------------------------------------------------------------------------------------------
+
+Difference between reflectance and rendering equation is that reflectance assumes a level of radiance hitting a point, without worrying about where that radiance comes from, while approaches to solve the rendering equation must consider 
+the radiance coming from other points to calculate the radiance at a point
+
+Initial absences:
+1) Transparency
+2) Global sub-surface scattering (where diffuse scattering is local)
+
+Therefore rendering focuses on surface reflactance and local scattering (diffuse), quantified by the Bidirectional Reflectance Distribution Function (BRDF) f(l, v) where l is the reflected direction
+
+(Manuka renderer used wavelengths as inputs to BRDF, look into?)
+
+Two physical constraints to keep in mind:
+1) Helmholtz Reciprocity, f(l, v) = f(v, l)
+2) Conservation of energy, outgoing energy cannot be greater than incoming energy (besides emmissive materials)
+
+Lambertian Shading Model:
+Has a constant BRDF, f(l,v) = p/pi, where p is the sub-surface albedo or the diffuse colour. Results in uniform scattering as every direction has an equal prob and contribution to the illumination
+
+Monte Carlo Integration Method:
+Instead of caclculating an integral across an entire domain, the integrand in calculated at random points from the domain, these are then used to approximate the overall integral, the more sampled the points the greater the accuracy.
+Less samples per pixel leads to high variance resulting in noise.
+Importance Sampling: idea that variance can be reduced by sending more rays in the directions that most of the light comes from/
+
+Path Tracing:
+A form of ray tracing where a path of rays is generated, to calculate the radiance at a point more rays are cast (Monte Carlo approximation of the rendering equation), and more at their collision points, leading to paths of rays throughout
+the scene.
+
+----------------------------------------------------------------------------------------------------------------------------------
+
+Colour and Radiometry Notes
+
+Colours are definied in PBRT with the Spectrum class. Four values are used to describe electromagnetic radiation (how light travels) and are described by their spectral power distribution (SPD) which the Spectrum class represents.
+These values are Flux, Intensity, Irradiance, Radiance.
+Spectrums are simply arrays of coefficients.
+The SampledSpectrum class represents an SPD with evenly spaced samples starting at wavelength 400nm and ending at wavelength 700nm (the visual light spectrum), so when made with 60 SpectralSamples then 60 different coefficients are set each 
+representing 1/60th of the visual light spectrum
+An SPD can be represented by three floating point numbers to create an RGB colour, let wavelength = w (lambda), then
+ 
+x_w = (1/Int[Y(w)]) (Int[S(w) X(w)])      These are computed with the Riemann Sum:  x_w ~= (1/Int[Y(w)]) ( w_end - w_start /N) Sum[i=0->N-1](X_i c_i)
+y_w = (1/Int[Y(w)]) (Int[S(w) Y(w)])
+z_w = (1/Int[Y(w)]) (Int[S(w) Z(w)])
+
+S(w) = SPD
+X(w),Y(w),Z(w) = spectral matching curves, these are represented in pbrt as arrays of values at each wavelength between 360nm-830nm, for a total of 470 values, to make a Spectrum of its own
+
+To finally convert to an RBG representation, we need mathcing curves for each R(w), G(w), B(w) that correspond to the display, shown in a vector-matrix equation
+
+[r]   [ Int[R(w) X(w)], Int[R(w) Y(w)], Int[R(w) Z(w)] ][x_w]
+[g] = [ Int[G(w) X(w)], Int[G(w) Y(w)], Int[G(w) Z(w)] ][y_w]
+[b]   [ Int[B(w) X(w)], Int[B(w) Y(w)], Int[B(w) Z(w)] ][z_w]
+
+----------------------------------------------------------------------------------------------------------------------------------
+
+REFLECTANCE EQUATION
+
+Solving the reflectance equation (a special case of the rendering equation),
+
+L_i(c, -v) = L_0(p, v)
+
+L = luminance at a point and direction of that luminance
+c = camera location
+v = ray going towards camera
+p = point on an object surface intersected by ray (c, -v)
+
+Using the BRDF we can get a formula for L_0(p,v),
+
+L_o(p,v) = int[ f(l,v) L_i(p,l) n.l ]
+
+int[] = integrating l over the entire unit hemisphere around the point p
+f(l,v) = the BRDF for the incoming ray v and outgoing reflected ray l
+L_i(p,l) = the luminance at point p coming from the ray l
+n.l = the dot product of the normal n at p and the ray l 
+
+----------------------------------------------------------------------------------------------------------------------------------
+
+RENDERING EQUATION
+
+L_o(p,v) = L_e(p,v) + int[ f(l,v) L_0( r(p,l), -l ) n.l+ ]
+
+L_e(p,v) = emmitted radiance from point p in direction v
+int[] = integrating l over the entire unit hemisphere around the point p
+f(l,v) = the BRDF for the incoming ray v and outgoing reflected ray l
+***
+L_0( r(p,l), -l ) = the incoming radiance along -l to the point r(p, l)
+r(p,l) = point on an object surface intersected by ray (p, l)
+***
+n.l+ = the dot product of the normal n at p and the ray l, clamped to positive values
+
+
+
+
+
+
+
+
+
+
+
+
+
+
