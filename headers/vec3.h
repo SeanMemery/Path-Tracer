@@ -55,6 +55,9 @@ public:
     vec3 operator-(){
         return vec3(-x, -y, -z);
     }
+    vec3 operator-(vec3 r) {
+        return vec3(x-r.x, y-r.y, z-r.z);
+    }
 
     float dot(vec3 d) {
         return x*d.x + y*d.y + z*d.z;

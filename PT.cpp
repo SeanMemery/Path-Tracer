@@ -6,15 +6,25 @@ unsigned int mainTexture;
 float exposure, g;
 int displayMetric;
 std::string skepuBackend;
-double renderTime;
+double renderTime, denoiseTime;
 
 Scene scene;
 ImGuiWindowFlags window_flags;
 Camera cam;
 Denoiser denoiser;
 
+// Screens
 vec3* preScreen;
 vec3* postScreen;
+vec3* normal;
+vec3* albedo1;
+vec3* albedo2;
+vec3* directLight;
+vec3* worldPos;
+vec3* denoisedCol;
+vec3* targetCol;
+DenoisingInf* denoisingInf;
+
 
 PT::PT() :
     fileName("")
@@ -44,15 +54,14 @@ PT::PT() :
     exposure = 1.3f;
     g = 1.3f;
     objEdit = 0;
-    displayMetric = -1;
+    displayMetric = 0;
 
     scene = Scene();
     scene.InitScene();
     renderer.UpdateConstants();
     denoiser = Denoiser();
 
-    preScreen = new vec3[xRes*yRes];
-    postScreen = new vec3[xRes*yRes];
+    InitScreens();
 }
 
 void PT::RenderLoop() {
@@ -93,39 +102,29 @@ void PT::PostProcess() {
         }
         else {
             switch(displayMetric) {
-                info  = denoiser.denoisingInf[ind];
-                case -1:
+                case 0:
                     col = preScreen[ind] / sampleCount;
                     break;
-                case 0:
-                    col = denoiser.targetCol[ind] / sampleCount;
-                    break;
                 case 1:
-                    col = info.denoisedCol / sampleCount;
+                    col = targetCol[ind] / sampleCount;
                     break;
                 case 2:
-                    col = info.finalCol / sampleCount;
+                    col = denoisedCol[ind];
                     break;
                 case 3:
-                    col = ((info.normal / sampleCount)+vec3(1.0f, 1.0f, 1.0f)) / 2.0f;
+                    col = ((normal[ind] / sampleCount)+vec3(1.0f, 1.0f, 1.0f)) / 2.0f;
                     break;
                 case 4:
-                    col = info.albedo1 / sampleCount;
+                    col = albedo1[ind] / sampleCount;
                     break;
                 case 5:
-                    col = info.albedo2 / sampleCount;
+                    col = albedo2[ind] / sampleCount;
                     break;
                 case 6:
-                    col = ((info.firstBounce / sampleCount)+vec3(1.0f, 1.0f, 1.0f)) / 2.0f;
+                    col = directLight[ind] / sampleCount;
                     break;
                 case 7:
-                    col = vec3(5.0f/(info.depth / sampleCount),5.0f/(info.depth / sampleCount),5.0f/(info.depth / sampleCount));
-                    break;
-                case 8:
-                    col = vec3(info.directLight, info.directLight, info.directLight) / sampleCount;
-                    break;
-                case 9:
-                    col = vec3(1.0f/fabs(info.worldPos.x / sampleCount), 1.0f/fabs(info.worldPos.y / sampleCount), 1.0f/fabs(info.worldPos.z / sampleCount));
+                    col = vec3(1.0f/fabs(worldPos[ind].x / sampleCount), 1.0f/fabs(worldPos[ind].y / sampleCount), 1.0f/fabs(worldPos[ind].z / sampleCount));
                     break;
             }
         }
@@ -139,6 +138,31 @@ void PT::PostProcess() {
         postScreen[ind] = col;
 
     }
+}
+
+void PT::DeleteScreens() {
+    delete preScreen ;
+    delete postScreen ;
+    delete normal ;
+    delete albedo1 ;
+    delete albedo2 ;
+    delete directLight;
+    delete worldPos;
+    delete denoisedCol ;
+    delete targetCol;
+}
+
+void PT::InitScreens() {
+    preScreen = new vec3[xRes*yRes];
+    postScreen = new vec3[xRes*yRes];
+    normal = new vec3[xRes*yRes];
+    albedo1 = new vec3[xRes*yRes];
+    albedo2 = new vec3[xRes*yRes];
+    directLight = new vec3[xRes*yRes];
+    worldPos = new vec3[xRes*yRes];
+    denoisedCol = new vec3[xRes*yRes];
+    targetCol = new vec3[xRes*yRes];
+    denoisingInf = new DenoisingInf[xRes*yRes];
 }
 
 void PT::SwitchRenderModes(){
@@ -157,11 +181,8 @@ void PT::SwitchRenderModes(){
     sampleCount = 0;
 
     // Reset Screens
-    delete preScreen;
-    delete postScreen;
-    preScreen = new vec3[xRes*yRes];
-    postScreen = new vec3[xRes*yRes];
-    denoiser.initDenoisingInf();
+    DeleteScreens();
+    InitScreens();
 }
 
 void PT::ProcessInput() {
@@ -332,24 +353,23 @@ void PT::ImGui() {
 
             ImGui::Begin("Denoisng", NULL, 0);
 
-            // if (denoiser.hasTarget) {
-            //     if (ImGui::Button("Reset Target")) {
-            //         denoiser.hasTarget=false;
-            //         denoiser.display(-1);
-            //     }
-            //     if (ImGui::Button("Show Target"))
-            //         denoiser.display(-3);
-            // }
-            // else {
-            //     if (ImGui::Button("Save Target Image")) 
-            //         denoiser.saveTargetCol();
-            // }
-
             // Update screen texture based on input metric
-            // 0 Target Col, 1: denoised image, 2: image, 3: normal, 4: albedo1, 5:albedo2, 6: firstBounce, 7: depth, 8: directLight, 9: worldPos
+            // 0: Regular View, 1 Target Col, 2: denoised image, 3: normal, 4: albedo1, 5: albedo2, 6: directLight, 7: worldPos
 
-            ImGui::SliderInt("Display", &displayMetric, -1, 9);
-            ImGui::Text(displayNames[displayMetric+1]);
+            ImGui::SliderInt("Display", &displayMetric, 0, 7);
+            ImGui::Text(displayNames[displayMetric]);
+
+            if (!rendering) {
+
+                if (ImGui::Button("Denoise Image"))
+                    denoiser.denoise();
+
+                ImGui::Text("Denoise Time: %.3f", denoiseTime);
+
+            }
+            else {
+                ImGui::Text("---- Need to Pause Rendering ---");
+            }
         
             ImGui::End();
         }

@@ -11,7 +11,7 @@ extern int xRes, yRes, xScreen, yScreen, maxDepth, currentRenderer, rayCount, sa
 extern bool denoising, moving, quit, rendering, refresh;
 extern unsigned int mainTexture; 
 extern std::string skepuBackend;
-extern double renderTime;
+extern double renderTime, denoiseTime;
 
 // Post Processing 
 extern float exposure, g;
@@ -26,6 +26,33 @@ extern Denoiser denoiser;
 // Screens
 extern vec3* preScreen;
 extern vec3* postScreen;
+
+// Denoising Screens
+extern vec3* normal;
+extern vec3* albedo1;
+extern vec3* albedo2;
+extern vec3* directLight;
+extern vec3* worldPos;
+
+extern vec3* denoisedCol;
+extern vec3* targetCol;
+
+struct DenoisingInf {
+    vec3 stdDevVecs[5];
+    float variances[7];
+    float wcSum;
+
+    DenoisingInf() {
+        int c = 0;
+        for (c=0; c<5; c++)
+            stdDevVecs[c] = vec3();
+        for (c=0; c<7; c++)
+        variances[c] = 0.0f;
+        wcSum = 0.0f;
+    }
+};
+
+extern DenoisingInf* denoisingInf;
 
 
 

@@ -14,7 +14,6 @@
 
 #include <algorithm>
 
-// For Rands
 using namespace std::chrono;
 typedef std::chrono::high_resolution_clock clock_;
 typedef std::chrono::duration<double, std::milli > milli_second_;
@@ -41,12 +40,10 @@ struct Constants {
 struct ReturnStruct {
 	float xyz[3];
 	float normal[3];
-	float firstBounce[3];
 	float albedo1[3];
 	float albedo2[3];
 	float worldPos[3];
 	float directLight;
-	float depth;
 	uint raysSent;
 };
 

@@ -2,24 +2,12 @@
 
 #include "GLOBALS.h"
 #include "vec3.h"
+#include <skepu>
 
-
-struct DenoisingInf {
-    vec3 finalCol;
-	vec3 normal;
-	vec3 firstBounce;
-	vec3 albedo1;
-    vec3 albedo2;
-    vec3 prevCol;
-    vec3 worldPos;
-    vec3 denoisedCol;
-    vec3 stdDevVecs[6] = {vec3(), vec3(), vec3(), vec3(), vec3(), vec3()};
-    float stdDevs[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-    float variances[7] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-    float depth, directLight;
-
-    float wcSum;
-};
+using namespace std::chrono;
+typedef std::chrono::high_resolution_clock clock_;
+typedef std::chrono::duration<double, std::milli > milli_second_;
+#include <chrono>
 
 struct GPUInf {
     float col[3] = {0.0f, 0.0f, 0.0f};
@@ -42,21 +30,12 @@ struct FilterVals {
 class Denoiser {
 public:
 
-    Denoiser() {
-        initDenoisingInf();
-    }
-
-    void initDenoisingInf() {
-        auto numPixels = xRes*yRes;
-
-        delete denoisingInf;
-        denoisingInf = new DenoisingInf[numPixels];  
-
-        delete targetCol;
-        targetCol = new vec3[numPixels];
-    }
+    Denoiser() {}
 
     void denoise() {
+
+        auto denoiseTimer = clock_::now();
+
         switch(currentRenderer) {
             case 0:
                 CPUDenoise();
@@ -80,6 +59,8 @@ public:
                 SkePUDenoise();
                 break;
         }
+
+        denoiseTime = std::chrono::duration_cast<milli_second_>(clock_::now() - denoiseTimer).count();
     }
 
     void CPUDenoise();
@@ -88,6 +69,6 @@ public:
     void OpenGLDenoise();
     void SkePUDenoise();
 
-    DenoisingInf* denoisingInf;
-    vec3* targetCol;
+    static FilterVals SkePUFilter(skepu::Region2D<GPUInf> r);
+    float getMSE();
 };
