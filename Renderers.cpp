@@ -643,8 +643,15 @@
 		for (int j = 0; j < yRes; j++) {
 			for (int i = 0; i < xRes; i++) {
 
-                s.s1 = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-                s.s2 = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                // Generate random seeds for each pixel
+				uint64_t s0 = constants.GloRandS[0];
+				uint64_t s1 = constants.GloRandS[1];
+				s1 ^= s0;
+				constants.GloRandS[0] = (s0 << 49) | ((s0 >> (64 - 49)) ^ s1 ^ (s1 << 21));
+				constants.GloRandS[1] = (s1 << 28) | (s1 >> (64 - 28));
+				s.s1 = constants.GloRandS[0];
+				s.s2 = constants.GloRandS[1];
+
                 auto skepuInd = skepu::Index2D();
                 skepuInd.row = j;
                 skepuInd.col = i;
@@ -664,23 +671,27 @@
 					worldPos[index]    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
 
 					// Standard Deviations
-					denoisingInf[index].stdDevVecs[0] += vec3(
+                    denoisingInf[index].stdDevVecs[0] += vec3(
+                         pow(preScreen[index].x/sampleCount - ret.xyz[0],2),
+                         pow(preScreen[index].y/sampleCount - ret.xyz[1],2),     
+                         pow(preScreen[index].z/sampleCount - ret.xyz[2],2));
+					denoisingInf[index].stdDevVecs[1] += vec3(
                          pow(normal[index].x/sampleCount - ret.normal[0],2),
                          pow(normal[index].y/sampleCount - ret.normal[1],2),     
                          pow(normal[index].z/sampleCount - ret.normal[2],2));
-					denoisingInf[index].stdDevVecs[1] += vec3(
-                        pow(albedo1[index].x/sampleCount - ret.albedo1[0],2),
+					denoisingInf[index].stdDevVecs[2] += vec3(
+                        pow(albedo1[index].x/sampleCount - ret.albedo1[0] ,2),
 					    pow(albedo1[index].y/sampleCount - ret.albedo1[1],2),    
 					    pow(albedo1[index].z/sampleCount - ret.albedo1[2],2));
-					denoisingInf[index].stdDevVecs[2] += vec3(
-                        pow(albedo2[index].x/sampleCount - ret.albedo2[0],2),
+					denoisingInf[index].stdDevVecs[3] += vec3(
+                        pow(albedo2[index].x/sampleCount - ret.albedo2[0] ,2),
 					    pow(albedo2[index].y/sampleCount - ret.albedo2[1],2),    
 					    pow(albedo2[index].z/sampleCount - ret.albedo2[2],2));
-					denoisingInf[index].stdDevVecs[3] += vec3(
+					denoisingInf[index].stdDevVecs[4] += vec3(
                         pow(worldPos[index].x/sampleCount - ret.worldPos[0],2),
 					    pow(worldPos[index].y/sampleCount - ret.worldPos[1],2),   
 					    pow(worldPos[index].z/sampleCount - ret.worldPos[2],2));
-					denoisingInf[index].stdDevVecs[4] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0);      
+					denoisingInf[index].stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0);      
 				}
 			}
 		}  
@@ -696,8 +707,15 @@
             #pragma omp parallel for
 			for (int i = 0; i < xRes; i++) {
 
-                s.s1 = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-                s.s2 = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                // Generate random seeds for each pixel
+				uint64_t s0 = constants.GloRandS[0];
+				uint64_t s1 = constants.GloRandS[1];
+				s1 ^= s0;
+				constants.GloRandS[0] = (s0 << 49) | ((s0 >> (64 - 49)) ^ s1 ^ (s1 << 21));
+				constants.GloRandS[1] = (s1 << 28) | (s1 >> (64 - 28));
+				s.s1 = constants.GloRandS[0];
+				s.s2 = constants.GloRandS[1];
+
                 auto skepuInd = skepu::Index2D();
                 skepuInd.row = j;
                 skepuInd.col = i;
@@ -717,23 +735,27 @@
 					worldPos[index]    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
 
 					// Standard Deviations
-					denoisingInf[index].stdDevVecs[0] += vec3(
+                    denoisingInf[index].stdDevVecs[0] += vec3(
+                         pow(preScreen[index].x/sampleCount - ret.xyz[0],2),
+                         pow(preScreen[index].y/sampleCount - ret.xyz[1],2),     
+                         pow(preScreen[index].z/sampleCount - ret.xyz[2],2));
+					denoisingInf[index].stdDevVecs[1] += vec3(
                          pow(normal[index].x/sampleCount - ret.normal[0],2),
                          pow(normal[index].y/sampleCount - ret.normal[1],2),     
                          pow(normal[index].z/sampleCount - ret.normal[2],2));
-					denoisingInf[index].stdDevVecs[1] += vec3(
+					denoisingInf[index].stdDevVecs[2] += vec3(
                         pow(albedo1[index].x/sampleCount - ret.albedo1[0] ,2),
 					    pow(albedo1[index].y/sampleCount - ret.albedo1[1],2),    
 					    pow(albedo1[index].z/sampleCount - ret.albedo1[2],2));
-					denoisingInf[index].stdDevVecs[2] += vec3(
+					denoisingInf[index].stdDevVecs[3] += vec3(
                         pow(albedo2[index].x/sampleCount - ret.albedo2[0] ,2),
 					    pow(albedo2[index].y/sampleCount - ret.albedo2[1],2),    
 					    pow(albedo2[index].z/sampleCount - ret.albedo2[2],2));
-					denoisingInf[index].stdDevVecs[3] += vec3(
+					denoisingInf[index].stdDevVecs[4] += vec3(
                         pow(worldPos[index].x/sampleCount - ret.worldPos[0],2),
 					    pow(worldPos[index].y/sampleCount - ret.worldPos[1],2),   
 					    pow(worldPos[index].z/sampleCount - ret.worldPos[2],2));
-					denoisingInf[index].stdDevVecs[4] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0);      
+					denoisingInf[index].stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0);      
 				}
 			}
 		}  
@@ -793,23 +815,27 @@
 					worldPos[index]    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
 
 					// Standard Deviations
-					denoisingInf[index].stdDevVecs[0] += vec3(
+                    denoisingInf[index].stdDevVecs[0] += vec3(
+                         pow(preScreen[index].x/sampleCount - ret.xyz[0],2),
+                         pow(preScreen[index].y/sampleCount - ret.xyz[1],2),     
+                         pow(preScreen[index].z/sampleCount - ret.xyz[2],2));
+					denoisingInf[index].stdDevVecs[1] += vec3(
                          pow(normal[index].x/sampleCount - ret.normal[0],2),
                          pow(normal[index].y/sampleCount - ret.normal[1],2),     
                          pow(normal[index].z/sampleCount - ret.normal[2],2));
-					denoisingInf[index].stdDevVecs[1] += vec3(
+					denoisingInf[index].stdDevVecs[2] += vec3(
                         pow(albedo1[index].x/sampleCount - ret.albedo1[0] ,2),
 					    pow(albedo1[index].y/sampleCount - ret.albedo1[1],2),    
 					    pow(albedo1[index].z/sampleCount - ret.albedo1[2],2));
-					denoisingInf[index].stdDevVecs[2] += vec3(
+					denoisingInf[index].stdDevVecs[3] += vec3(
                         pow(albedo2[index].x/sampleCount - ret.albedo2[0] ,2),
 					    pow(albedo2[index].y/sampleCount - ret.albedo2[1],2),    
 					    pow(albedo2[index].z/sampleCount - ret.albedo2[2],2));
-					denoisingInf[index].stdDevVecs[3] += vec3(
+					denoisingInf[index].stdDevVecs[4] += vec3(
                         pow(worldPos[index].x/sampleCount - ret.worldPos[0],2),
 					    pow(worldPos[index].y/sampleCount - ret.worldPos[1],2),   
 					    pow(worldPos[index].z/sampleCount - ret.worldPos[2],2));
-					denoisingInf[index].stdDevVecs[4] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0);      
+					denoisingInf[index].stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0);      
 				}
 			}
 		}        

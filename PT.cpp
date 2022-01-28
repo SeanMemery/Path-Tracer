@@ -6,12 +6,18 @@ unsigned int mainTexture;
 float exposure, g;
 int displayMetric;
 std::string skepuBackend;
-double renderTime, denoiseTime;
+double renderTime, denoiseTime, totalTime;
 
 Scene scene;
 ImGuiWindowFlags window_flags;
 Camera cam;
 Denoiser denoiser;
+Renderers renderer;
+
+// Denoising
+DenoiserNN denoiserNN;
+int denoisingN, trainingEpoch;
+bool training;
 
 // Screens
 vec3* preScreen;
@@ -55,11 +61,14 @@ PT::PT() :
     g = 1.3f;
     objEdit = 0;
     displayMetric = 0;
+    denoisingN = 1;
 
     scene = Scene();
     scene.InitScene();
     renderer.UpdateConstants();
+
     denoiser = Denoiser();
+    denoiserNN = DenoiserNN();
 
     InitScreens();
 }
@@ -79,6 +88,8 @@ void PT::RenderLoop() {
 
         if (rendering) 
             renderer.Render();
+        else if (training)
+            denoiserNN.TrainNN();
 
         PostProcess();
 
@@ -106,24 +117,21 @@ void PT::PostProcess() {
                     col = preScreen[ind] / sampleCount;
                     break;
                 case 1:
-                    col = targetCol[ind] / sampleCount;
-                    break;
-                case 2:
                     col = denoisedCol[ind];
                     break;
-                case 3:
+                case 2:
                     col = ((normal[ind] / sampleCount)+vec3(1.0f, 1.0f, 1.0f)) / 2.0f;
                     break;
-                case 4:
+                case 3:
                     col = albedo1[ind] / sampleCount;
                     break;
-                case 5:
+                case 4:
                     col = albedo2[ind] / sampleCount;
                     break;
-                case 6:
+                case 5:
                     col = directLight[ind] / sampleCount;
                     break;
-                case 7:
+                case 6:
                     col = vec3(1.0f/fabs(worldPos[ind].x / sampleCount), 1.0f/fabs(worldPos[ind].y / sampleCount), 1.0f/fabs(worldPos[ind].z / sampleCount));
                     break;
             }
@@ -179,6 +187,7 @@ void PT::SwitchRenderModes(){
     xScreen = 1920*screenPerc;
     yScreen = 1080*screenPerc;
     sampleCount = 0;
+    totalTime = 0;
 
     // Reset Screens
     DeleteScreens();
@@ -256,6 +265,7 @@ void PT::ImGui() {
         float numMillRays = rayCount / 1000000.0f;
         ImGui::Text("Time Per Million Rays %.3f", renderTime/numMillRays);
         ImGui::Text("Number of Samples %d", sampleCount);
+        ImGui::Text("Total Render Time %.3f s", totalTime / 1000.0f);
 
         refresh |= ImGui::SliderFloat("Resolution Strength ( 1920x1080 )", &resPerc, 0.01f, 2.0f);
         refresh |= ImGui::SliderFloat("Screen Size ( 1920x1080 )", &screenPerc, 0.01f, 2.0f);
@@ -354,17 +364,40 @@ void PT::ImGui() {
             ImGui::Begin("Denoisng", NULL, 0);
 
             // Update screen texture based on input metric
-            // 0: Regular View, 1 Target Col, 2: denoised image, 3: normal, 4: albedo1, 5: albedo2, 6: directLight, 7: worldPos
+            // 0: Regular View,  denoised image, 2: normal, 3: albedo1, 4: albedo2, 5: directLight, 6: worldPos
 
-            ImGui::SliderInt("Display", &displayMetric, 0, 7);
+            ImGui::SliderInt("Display", &displayMetric, 0, 6);
             ImGui::Text(displayNames[displayMetric]);
 
             if (!rendering) {
+
+                ImGui::InputInt("Denoising N", &denoisingN);
 
                 if (ImGui::Button("Denoise Image"))
                     denoiser.denoise();
 
                 ImGui::Text("Denoise Time: %.3f", denoiseTime);
+
+                ImGui::Text("");
+                    
+                if (ImGui::Button("Randomize Weights"))
+                    denoiserNN.RandomizeWeights();
+                if (ImGui::Button("Ouput Weights"))
+                    denoiserNN.OutputWeights();
+
+                ImGui::InputFloat("Learning Rate", &denoiserNN.learningRate);
+                ImGui::InputInt("Sample for Training", &denoiserNN.samplesWhenTraining);
+
+                if (!training) {
+                    if (ImGui::Button("Start Training")) 
+                        denoiserNN.InitTraining();
+                } else {
+                    ImGui::Text("Epoch: %d", trainingEpoch);
+                    ImGui::Text("RelMSE: %.3f", denoiserNN.relMSE);
+                    if (ImGui::Button("Stop Training"))
+                        denoiserNN.EndTraining();   
+                }
+
 
             }
             else {

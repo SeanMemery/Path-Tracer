@@ -125,13 +125,15 @@ $(BUILD):
 skepu:
 	$(SKEPU) $(FNAMES) $(BACKENDS) -name SkePURenderers $(PT_SOURCE)/Renderers.cpp -dir $(PT_SOURCE) $(SKEPU_FLAGS)
 	$(SKEPU) $(FNAMES) $(BACKENDS) -name SkePUDenoiser $(PT_SOURCE)/Denoiser.cpp -dir $(PT_SOURCE) $(SKEPU_FLAGS)
-	nvcc SkePURenderers.cu SkePUDenoiser.cu $(PT_CPP_FILES) -w $(TARGET_FLAGS) $(BACKEND_FLAGS) -O3 -o $(BUILD)/PT
+	$(SKEPU) $(FNAMES) $(BACKENDS) -name SkePUDenoiserNN $(PT_SOURCE)/DenoiserNN.cpp -dir $(PT_SOURCE) $(SKEPU_FLAGS)
+	nvcc SkePURenderers.cu SkePUDenoiser.cu SkePUDenoiserNN.cu $(PT_CPP_FILES) -w $(TARGET_FLAGS) $(BACKEND_FLAGS) -O3 -o $(BUILD)/PT
 	rm *.cu 
 
 debug:
 	$(SKEPU) $(FNAMES) $(BACKENDS) -name SkePURenderers $(PT_SOURCE)/Renderers.cpp -dir $(PT_SOURCE) $(SKEPU_FLAGS)
 	$(SKEPU) $(FNAMES) $(BACKENDS) -name SkePUDenoiser $(PT_SOURCE)/Denoiser.cpp -dir $(PT_SOURCE) $(SKEPU_FLAGS)
-	nvcc SkePURenderers.cu SkePUDenoiser.cu $(PT_CPP_FILES) -w $(TARGET_FLAGS) $(BACKEND_FLAGS) -g -O0 -o $(BUILD)/PT_debug
+	$(SKEPU) $(FNAMES) $(BACKENDS) -name SkePUDenoiserNN $(PT_SOURCE)/DenoiserNN.cpp -dir $(PT_SOURCE) $(SKEPU_FLAGS)
+	nvcc SkePURenderers.cu SkePUDenoiser.cu SkePUDenoiserNN.cu $(PT_CPP_FILES) -w $(TARGET_FLAGS) $(BACKEND_FLAGS) -g -O0 -o $(BUILD)/PT_debug
 
 
 

@@ -3,6 +3,7 @@
 #include "GLOBALS.h"
 #include "vec3.h"
 #include <skepu>
+#include "DenoiserNN.h"
 
 using namespace std::chrono;
 typedef std::chrono::high_resolution_clock clock_;
@@ -32,36 +33,7 @@ public:
 
     Denoiser() {}
 
-    void denoise() {
-
-        auto denoiseTimer = clock_::now();
-
-        switch(currentRenderer) {
-            case 0:
-                CPUDenoise();
-                break;
-            case 1:
-                OMPDenoise();
-                break;
-            case 2:
-                CUDADenoise();
-                break;
-            case 3:
-                OpenGLDenoise();
-                break;
-            case 4:
-                SkePUDenoise();
-                break;
-            case 5:
-                SkePUDenoise();
-                break;
-            case 6:
-                SkePUDenoise();
-                break;
-        }
-
-        denoiseTime = std::chrono::duration_cast<milli_second_>(clock_::now() - denoiseTimer).count();
-    }
+    void denoise();
 
     void CPUDenoise();
     void OMPDenoise();
@@ -71,4 +43,5 @@ public:
 
     static FilterVals SkePUFilter(skepu::Region2D<GPUInf> r);
     float getMSE();
+    void saveTargetCol();
 };

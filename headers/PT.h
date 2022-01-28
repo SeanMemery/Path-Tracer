@@ -8,6 +8,7 @@
 #include "Mat.h"
 #include "Camera.h"
 #include "Denoiser.h"
+#include "DenoiserNN.h"
 
 #include "ext/imgui.h"
 #include "ext/imgui_impl_sdl.h"
@@ -35,10 +36,8 @@ public:
     void InitScreens();
     void DeleteScreens();
 
-    Renderers renderer;
-
-    // 0: Regular View, 1 Target Col, 2: denoised image, 3: normal, 4: albedo1, 5: albedo2, 6: directLight, 7: worldPos
-    const char* displayNames[8] = {"Image", "Target Col", "Denoised Col", "Normal", "Albedo 1", "Albedo 2", "Direct Light", "World Pos"};
+    // 0: Regular View,  denoised image, 2: normal, 3: albedo1, 4: albedo2, 5: directLight, 6: worldPos
+    const char* displayNames[7] = {"Image", "Denoised Col", "Normal", "Albedo 1", "Albedo 2", "Direct Light", "World Pos"};
 
     // ImGui Vars
     int objEdit;

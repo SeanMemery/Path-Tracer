@@ -78,4 +78,8 @@ public:
 			z * c.x - c.z * x,
 			x * c.y - c.x * y);
     }
+    float sumDiv(float div) {
+        return (x+y+z)/div;
+    }
+
 };

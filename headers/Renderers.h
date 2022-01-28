@@ -86,6 +86,7 @@ public:
         }
 
         renderTime = std::chrono::duration_cast<milli_second_>(clock_::now() - renderTimer).count();
+        totalTime += renderTime;
 
     }
 
