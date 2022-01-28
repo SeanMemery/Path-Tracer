@@ -22,18 +22,16 @@ public:
 		double _wallDist = 10;
 		double _wallRadius = 10;
 
-		auto l_min = vec3(-2.5, -0.5f, -2.5);
-		auto l_max = vec3(2.5, -0.5f, 2.5);
-		objList.push_back(std::make_shared<AABB>(lightMat1, l_min, l_max));
+		//objList.push_back(std::make_shared<Sphere>(vec3(0, _wallDist, 0), lightMat1, 1));
+        objList.push_back(std::make_shared<AABB>(vec3(0, _wallDist, 0), lightMat1, vec3(-2.5f, -1.0f, -2.5f), vec3(2.5f, -0.5f, 2.5f)));
+        AddToImpList(0);
 
-        importantList.push_back(0);
-
-		objList.push_back(std::make_shared<AABB>(wallMat2, vec3(-_wallRadius, -_wallRadius, _wallDist), vec3(_wallRadius, _wallRadius, _wallDist)) );      // Front
-		objList.push_back(std::make_shared<AABB>(wallMat1, vec3(_wallDist, -_wallRadius, -_wallRadius), vec3(_wallDist, _wallRadius, _wallRadius)) );	   // Right
-		objList.push_back(std::make_shared<AABB>(wallMat6, vec3(-_wallDist, -_wallRadius, -_wallRadius),vec3(-_wallDist, _wallRadius, _wallRadius)));	   // Left
-		objList.push_back(std::make_shared<AABB>(wallMat3, vec3(-_wallRadius, _wallDist, -_wallRadius), vec3(_wallRadius, _wallDist, _wallRadius)) );      // Top
-		objList.push_back(std::make_shared<AABB>(wallMat4, vec3(-_wallRadius, -_wallDist, -_wallRadius),vec3(_wallRadius, -_wallDist, _wallRadius)));      // Bottom
-		objList.push_back(std::make_shared<AABB>(wallMat5, vec3(-_wallRadius, -_wallRadius, -_wallDist),vec3(_wallRadius, _wallRadius, -_wallDist)));      // Back
+		objList.push_back(std::make_shared<AABB>(vec3(0,0,_wallDist), wallMat2, vec3(-_wallRadius, -_wallRadius, 0), vec3(_wallRadius, _wallRadius, 0)) );      // Front
+		objList.push_back(std::make_shared<AABB>(vec3(_wallDist,0,0), wallMat1, vec3(0, -_wallRadius, -_wallRadius), vec3(0, _wallRadius, _wallRadius)) );	   // Right
+		objList.push_back(std::make_shared<AABB>(vec3(-_wallDist,0,0), wallMat6, vec3(0, -_wallRadius, -_wallRadius),vec3(0, _wallRadius, _wallRadius)));	   // Left
+		objList.push_back(std::make_shared<AABB>(vec3(0,_wallDist,0), wallMat3, vec3(-_wallRadius, 0, -_wallRadius), vec3(_wallRadius, 0, _wallRadius)) );      // Top
+		objList.push_back(std::make_shared<AABB>(vec3(0,-_wallDist,0), wallMat4, vec3(-_wallRadius, 0, -_wallRadius),vec3(_wallRadius, 0, _wallRadius)));      // Bottom
+		objList.push_back(std::make_shared<AABB>(vec3(0,0,-_wallDist), wallMat5, vec3(-_wallRadius, -_wallRadius, 0),vec3(_wallRadius, _wallRadius, 0)));      // Back
 
 
     }
@@ -47,11 +45,31 @@ public:
                 objList.push_back(std::make_shared<Sphere>(vec3(), Mat(), 1));
                 break;
             case 1:
-                objList.push_back(std::make_shared<AABB>(Mat(), vec3(-1,-1,-1), vec3(1,1,1)));
+                objList.push_back(std::make_shared<AABB>(vec3(), Mat(), vec3(-1,-1,-1), vec3(1,1,1)));
                 break;
         }
     }   
-    
+    void RemoveShape(int s) {
+        if (s >= 0 && s < objList.size()) {
+            RemoveFromImpList(s);
+            std::swap(objList.at(s), objList.back());
+            objList.pop_back();
+        }  
+    }
+
+    void AddToImpList(int index) {
+        importantList.push_back(index);
+        objList[index]->inImportantList = true;
+    }
+    void RemoveFromImpList(int index) {
+        for (int objInd = 0; objInd < importantList.size(); objInd++)
+            if (importantList[objInd] == index) {
+                objList[index]->inImportantList = false;
+                std::swap(importantList.at(objInd), importantList.back());
+                importantList.pop_back();
+                return;
+            }
+    }
     std::vector<std::shared_ptr<Obj>> objList; 
     std::vector<int> importantList;
 

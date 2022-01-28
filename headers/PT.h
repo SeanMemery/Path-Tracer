@@ -7,6 +7,7 @@
 #include "Obj.h"
 #include "Mat.h"
 #include "Camera.h"
+#include "Denoiser.h"
 
 #include "ext/imgui.h"
 #include "ext/imgui_impl_sdl.h"
@@ -25,15 +26,20 @@ public:
     void RenderLoop();
     void ImGui();
     void ProcessInput();
+    void PostProcess();
 
     void SaveImage(char * name);
     void SwitchRenderModes();
 
     Renderers renderer;
 
+    // -1: Regular View, 0 Target Col, 1: denoised image, 2: image, 3: normal, 4: albedo1, 5:albedo2, 6: firstBounce, 7: depth, 8: directLight, 9: worldPos
+    const char* displayNames[11] = {"None", "Target Col", "Denoised Col", "Image", "Normal", "Albedo 1", "Albedo 2", "First Bounce", "Depth", "Direct Light", "World Pos"};
+
     // ImGui Vars
+    int objEdit;
     char fileName[32];
-    float resPerc;
+    float resPerc, screenPerc;
     SDL_Window* sdlWindow;
 
 

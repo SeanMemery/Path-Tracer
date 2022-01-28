@@ -1,49 +1,6 @@
 #include "Renderers.h"
 
-    void Renderers::Render() {
-
-        switch(currentRenderer) {
-            case 0:
-                CPURender();
-                break;
-            case 1:
-                OMPRender();
-                break;
-            case 2:
-                CPURender();
-                break;
-            case 3:
-                CUDARender();
-                break;
-            case 4:
-                SkePURender();
-                break;
-            case 5:
-                SkePURender();
-                break;
-            case 6:
-                SkePURender();
-                break;
-        }
-
-    }
-
-    void Renderers::CPURender() {
-
-    }
-    void Renderers::OMPRender() {
-
-    }
-    void Renderers::CUDARender() {
-
-    }
-    void Renderers::OpenGLRender() {
-
-    }
-
-
-
-    static ReturnStruct SkepuRenderFunc(skepu::Index2D ind, RandomSeeds seeds, Constants constants) {
+    static ReturnStruct RenderFunc(skepu::Index2D ind, RandomSeeds seeds, Constants constants) {
         // Ray
         double camPos[3] = {constants.camPos[0], constants.camPos[1], constants.camPos[2]};
         double rayPos[3] = {camPos[0], camPos[1], camPos[2]};
@@ -686,13 +643,139 @@
         ret.raysSent = numShapeHit;
         return ret;
     }
+    
+    void Renderers::CPURender() {
+
+        ReturnStruct ret;
+        int index;
+        sampleCount++;
+        rayCount = 0;
+        RandomSeeds s;
+		for (int j = 0; j < yRes; j++) {
+			for (int i = 0; i < xRes; i++) {
+
+                s.s1 = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                s.s2 = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                auto skepuInd = skepu::Index2D();
+                skepuInd.row = j;
+                skepuInd.col = i;
+                
+				ret = RenderFunc(skepuInd, s, constants);
+				index = j*xRes + i;
+
+                preScreen[index] += vec3(ret.xyz[0], ret.xyz[1], ret.xyz[2]);
+				rayCount += ret.raysSent;
+
+				// Denoiser info
+				if (denoising) {
+                    denoiser.denoisingInf[index].finalCol    += vec3(ret.xyz[0], ret.xyz[1], ret.xyz[2]);
+					denoiser.denoisingInf[index].normal      += vec3(ret.normal[0], ret.normal[1], ret.normal[2]);
+					denoiser.denoisingInf[index].firstBounce += vec3(ret.firstBounce[0], ret.firstBounce[1], ret.firstBounce[2]);
+					denoiser.denoisingInf[index].albedo1     += vec3(ret.albedo1[0], ret.albedo1[1], ret.albedo1[2]);
+					denoiser.denoisingInf[index].albedo2     += vec3(ret.albedo2[0], ret.albedo2[1], ret.albedo2[2]);
+					denoiser.denoisingInf[index].depth       += ret.depth;
+					denoiser.denoisingInf[index].directLight += ret.directLight;
+					denoiser.denoisingInf[index].worldPos    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
+
+					// Standard Deviations
+					denoiser.denoisingInf[index].stdDevVecs[0] += vec3(
+                         pow(denoiser.denoisingInf[index].normal.x/sampleCount - ret.normal[0],2),
+                         pow(denoiser.denoisingInf[index].normal.y/sampleCount - ret.normal[1],2),     
+                         pow(denoiser.denoisingInf[index].normal.z/sampleCount - ret.normal[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[1] += vec3(
+                        pow(denoiser.denoisingInf[index].firstBounce.x/sampleCount - ret.firstBounce[0],2),
+					    pow(denoiser.denoisingInf[index].firstBounce.y/sampleCount - ret.firstBounce[1],2),
+					    pow(denoiser.denoisingInf[index].firstBounce.z/sampleCount - ret.firstBounce[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[2] += vec3(
+                        pow(denoiser.denoisingInf[index].albedo1.x/sampleCount - ret.albedo1[0] ,2),
+					    pow(denoiser.denoisingInf[index].albedo1.y/sampleCount - ret.albedo1[1],2),    
+					    pow(denoiser.denoisingInf[index].albedo1.z/sampleCount - ret.albedo1[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[3] += vec3(
+                        pow(denoiser.denoisingInf[index].albedo2.x/sampleCount - ret.albedo2[0] ,2),
+					    pow(denoiser.denoisingInf[index].albedo2.y/sampleCount - ret.albedo2[1],2),    
+					    pow(denoiser.denoisingInf[index].albedo2.z/sampleCount - ret.albedo2[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[4] += vec3(
+                        pow(denoiser.denoisingInf[index].worldPos.x/sampleCount - ret.worldPos[0],2),
+					    pow(denoiser.denoisingInf[index].worldPos.y/sampleCount - ret.worldPos[1],2),   
+					    pow(denoiser.denoisingInf[index].worldPos.z/sampleCount - ret.worldPos[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[5] += vec3(pow(denoiser.denoisingInf[index].directLight/sampleCount - ret.directLight,2),0,0);      
+				}
+			}
+		}  
+    }
+    void Renderers::OMPRender() {
+        ReturnStruct ret;
+        int index;
+        sampleCount++;
+        rayCount = 0;
+        RandomSeeds s;
+        #pragma omp parallel for
+		for (int j = 0; j < yRes; j++) {
+            #pragma omp parallel for
+			for (int i = 0; i < xRes; i++) {
+
+                s.s1 = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                s.s2 = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                auto skepuInd = skepu::Index2D();
+                skepuInd.row = j;
+                skepuInd.col = i;
+                
+				ret = RenderFunc(skepuInd, s, constants);
+				index = j*xRes + i;
+
+                preScreen[index] += vec3(ret.xyz[0], ret.xyz[1], ret.xyz[2]);
+				rayCount += ret.raysSent;
+
+				// Denoiser info
+				if (denoising) {
+                    denoiser.denoisingInf[index].finalCol    += vec3(ret.xyz[0], ret.xyz[1], ret.xyz[2]);
+					denoiser.denoisingInf[index].normal      += vec3(ret.normal[0], ret.normal[1], ret.normal[2]);
+					denoiser.denoisingInf[index].firstBounce += vec3(ret.firstBounce[0], ret.firstBounce[1], ret.firstBounce[2]);
+					denoiser.denoisingInf[index].albedo1     += vec3(ret.albedo1[0], ret.albedo1[1], ret.albedo1[2]);
+					denoiser.denoisingInf[index].albedo2     += vec3(ret.albedo2[0], ret.albedo2[1], ret.albedo2[2]);
+					denoiser.denoisingInf[index].depth       += ret.depth;
+					denoiser.denoisingInf[index].directLight += ret.directLight;
+					denoiser.denoisingInf[index].worldPos    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
+
+					// Standard Deviations
+					denoiser.denoisingInf[index].stdDevVecs[0] += vec3(
+                         pow(denoiser.denoisingInf[index].normal.x/sampleCount - ret.normal[0],2),
+                         pow(denoiser.denoisingInf[index].normal.y/sampleCount - ret.normal[1],2),     
+                         pow(denoiser.denoisingInf[index].normal.z/sampleCount - ret.normal[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[1] += vec3(
+                        pow(denoiser.denoisingInf[index].firstBounce.x/sampleCount - ret.firstBounce[0],2),
+					    pow(denoiser.denoisingInf[index].firstBounce.y/sampleCount - ret.firstBounce[1],2),
+					    pow(denoiser.denoisingInf[index].firstBounce.z/sampleCount - ret.firstBounce[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[2] += vec3(
+                        pow(denoiser.denoisingInf[index].albedo1.x/sampleCount - ret.albedo1[0] ,2),
+					    pow(denoiser.denoisingInf[index].albedo1.y/sampleCount - ret.albedo1[1],2),    
+					    pow(denoiser.denoisingInf[index].albedo1.z/sampleCount - ret.albedo1[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[3] += vec3(
+                        pow(denoiser.denoisingInf[index].albedo2.x/sampleCount - ret.albedo2[0] ,2),
+					    pow(denoiser.denoisingInf[index].albedo2.y/sampleCount - ret.albedo2[1],2),    
+					    pow(denoiser.denoisingInf[index].albedo2.z/sampleCount - ret.albedo2[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[4] += vec3(
+                        pow(denoiser.denoisingInf[index].worldPos.x/sampleCount - ret.worldPos[0],2),
+					    pow(denoiser.denoisingInf[index].worldPos.y/sampleCount - ret.worldPos[1],2),   
+					    pow(denoiser.denoisingInf[index].worldPos.z/sampleCount - ret.worldPos[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[5] += vec3(pow(denoiser.denoisingInf[index].directLight/sampleCount - ret.directLight,2),0,0);      
+				}
+			}
+		}  
+    }
+    void Renderers::CUDARender() {
+
+    }
+    void Renderers::OpenGLRender() {
+
+    }
 
     void Renderers::SkePURender() {
 
         // Configure SkePU
         auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(skepuBackend)};
         spec.activateBackend();
-        auto renderFunc = skepu::Map<1>(SkepuRenderFunc);
+        auto renderFunc = skepu::Map<1>(RenderFunc);
         renderFunc.setBackend(spec);
         auto outputContainer = skepu::Matrix<ReturnStruct>(constants.RESV, constants.RESH);
         auto seeds = skepu::Matrix<RandomSeeds>(constants.RESV, constants.RESH);
@@ -716,63 +799,52 @@
 		outputContainer.updateHost(); // TODO: Check speed difference when using [] vs () + updateHost
         ReturnStruct ret;
         int index;
-        vec3 col;
+        sampleCount++;
+        rayCount = 0;
 		for (int j = 0; j < yRes; j++) {
 			for (int i = 0; i < xRes; i++) {
 				ret = outputContainer(j, i);
 				index = j*xRes + i;
 
-				// // Denoiser info, averaged over samples
-				// if (settings->recordDenoisingInf) {
-				// 	GloDenoiser.denoisingInf[index].normal      += glm::vec3(ret.normal[0], ret.normal[1], ret.normal[2])/(float)settings->numSamples;
-				// 	GloDenoiser.denoisingInf[index].firstBounce += glm::vec3(ret.firstBounce[0], ret.firstBounce[1], ret.firstBounce[2])/(float)settings->numSamples;
-				// 	GloDenoiser.denoisingInf[index].albedo1     += glm::vec3(ret.albedo1[0], ret.albedo1[1], ret.albedo1[2])/(float)settings->numSamples;
-				// 	GloDenoiser.denoisingInf[index].albedo2     += glm::vec3(ret.albedo2[0], ret.albedo2[1], ret.albedo2[2])/(float)settings->numSamples;
-				// 	GloDenoiser.denoisingInf[index].depth       += ret.depth/(float)settings->numSamples;
-				// 	GloDenoiser.denoisingInf[index].directLight += ret.directLight/(float)settings->numSamples;
-				// 	GloDenoiser.denoisingInf[index].worldPos    += glm::vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2])/(float)settings->numSamples;
+                preScreen[index] += vec3(ret.xyz[0], ret.xyz[1], ret.xyz[2]);
+				rayCount += ret.raysSent;
 
-				// 	// Standard Deviations
-				// 	GloDenoiser.denoisingInf[index].stdDevVecs[0] += glm::vec3(pow(GloDenoiser.denoisingInf[index].normal.x      - ret.normal[0]     ,2),
-				// 	pow(GloDenoiser.denoisingInf[index].normal.y - ret.normal[1],2),     
-				// 	pow(GloDenoiser.denoisingInf[index].normal.z - ret.normal[2],2));
-				// 	GloDenoiser.denoisingInf[index].stdDevVecs[1] += glm::vec3(pow(GloDenoiser.denoisingInf[index].firstBounce.x - ret.firstBounce[0],2),
-				// 	pow(GloDenoiser.denoisingInf[index].firstBounce.y - ret.firstBounce[1],2),
-				// 	pow(GloDenoiser.denoisingInf[index].firstBounce.z - ret.firstBounce[2],2));
-				// 	GloDenoiser.denoisingInf[index].stdDevVecs[2] += glm::vec3(pow(GloDenoiser.denoisingInf[index].albedo1.x     - ret.albedo1[0]    ,2),
-				// 	pow(GloDenoiser.denoisingInf[index].albedo1.y - ret.albedo1[1],2),    
-				// 	pow(GloDenoiser.denoisingInf[index].albedo1.z - ret.albedo1[2],2));
-				// 	GloDenoiser.denoisingInf[index].stdDevVecs[3] += glm::vec3(pow(GloDenoiser.denoisingInf[index].albedo2.x     - ret.albedo2[0]    ,2),
-				// 	pow(GloDenoiser.denoisingInf[index].albedo2.y - ret.albedo2[1],2),    
-				// 	pow(GloDenoiser.denoisingInf[index].albedo2.z - ret.albedo2[2],2));
-				// 	GloDenoiser.denoisingInf[index].stdDevVecs[4] += glm::vec3(pow(GloDenoiser.denoisingInf[index].worldPos.x    - ret.worldPos[0]   ,2),
-				// 	pow(GloDenoiser.denoisingInf[index].worldPos.y - ret.worldPos[1],2),   
-				// 	pow(GloDenoiser.denoisingInf[index].worldPos.z - ret.worldPos[2],2));
-				// 	GloDenoiser.denoisingInf[index].stdDevVecs[5] += glm::vec3(pow(GloDenoiser.denoisingInf[index].directLight   - ret.directLight   ,2),0,0);      
+				// Denoiser info
+				if (denoising) {
+                    denoiser.denoisingInf[index].finalCol    += vec3(ret.xyz[0], ret.xyz[1], ret.xyz[2]);
+					denoiser.denoisingInf[index].normal      += vec3(ret.normal[0], ret.normal[1], ret.normal[2]);
+					denoiser.denoisingInf[index].firstBounce += vec3(ret.firstBounce[0], ret.firstBounce[1], ret.firstBounce[2]);
+					denoiser.denoisingInf[index].albedo1     += vec3(ret.albedo1[0], ret.albedo1[1], ret.albedo1[2]);
+					denoiser.denoisingInf[index].albedo2     += vec3(ret.albedo2[0], ret.albedo2[1], ret.albedo2[2]);
+					denoiser.denoisingInf[index].depth       += ret.depth;
+					denoiser.denoisingInf[index].directLight += ret.directLight;
+					denoiser.denoisingInf[index].worldPos    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
 
-				// 	GloDenoiser.hasInfo = true;
-				// }
-
-				col = vec3(ret.xyz[0], ret.xyz[1], ret.xyz[2]);
-                sampleCount++;
-				screen[index] = (screen[index]*(sampleCount-1)+col)/((float)sampleCount);
-				rayCount = ret.raysSent;
-
-                // // Add final render colour and std devs to denoising inf
-                // if (fullResSettings.recordDenoisingInf && !lowRes){
-                //     for (int j = 0; j < fullResSettings.textureHeight; j++) {
-                //         for (int i = 0; i < fullResSettings.textureWidth; i++) {
-                //             int index = j*fullResSettings.textureWidth+i;
-                //             GloDenoiser.denoisingInf[index].finalCol = GloScreenBuffer.colours[index];
-                //             for (int sd =0; sd<6; sd++)
-                //                 for (int c=0; c<3; c++) 
-                //                     GloDenoiser.denoisingInf[index].stdDevs[sd] += sqrt(GloDenoiser.denoisingInf[index].stdDevVecs[sd][c]/fullResSettings.numSamples);
-                //         }
-                //     }
-                // }
+					// Standard Deviations
+					denoiser.denoisingInf[index].stdDevVecs[0] += vec3(
+                         pow(denoiser.denoisingInf[index].normal.x/sampleCount - ret.normal[0],2),
+                         pow(denoiser.denoisingInf[index].normal.y/sampleCount - ret.normal[1],2),     
+                         pow(denoiser.denoisingInf[index].normal.z/sampleCount - ret.normal[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[1] += vec3(
+                        pow(denoiser.denoisingInf[index].firstBounce.x/sampleCount - ret.firstBounce[0],2),
+					    pow(denoiser.denoisingInf[index].firstBounce.y/sampleCount - ret.firstBounce[1],2),
+					    pow(denoiser.denoisingInf[index].firstBounce.z/sampleCount - ret.firstBounce[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[2] += vec3(
+                        pow(denoiser.denoisingInf[index].albedo1.x/sampleCount - ret.albedo1[0] ,2),
+					    pow(denoiser.denoisingInf[index].albedo1.y/sampleCount - ret.albedo1[1],2),    
+					    pow(denoiser.denoisingInf[index].albedo1.z/sampleCount - ret.albedo1[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[3] += vec3(
+                        pow(denoiser.denoisingInf[index].albedo2.x/sampleCount - ret.albedo2[0] ,2),
+					    pow(denoiser.denoisingInf[index].albedo2.y/sampleCount - ret.albedo2[1],2),    
+					    pow(denoiser.denoisingInf[index].albedo2.z/sampleCount - ret.albedo2[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[4] += vec3(
+                        pow(denoiser.denoisingInf[index].worldPos.x/sampleCount - ret.worldPos[0],2),
+					    pow(denoiser.denoisingInf[index].worldPos.y/sampleCount - ret.worldPos[1],2),   
+					    pow(denoiser.denoisingInf[index].worldPos.z/sampleCount - ret.worldPos[2],2));
+					denoiser.denoisingInf[index].stdDevVecs[5] += vec3(pow(denoiser.denoisingInf[index].directLight/sampleCount - ret.directLight,2),0,0);      
+				}
 			}
-		}
-        
+		}        
     }
 
     void Renderers::UpdateConstants() {

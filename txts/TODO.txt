@@ -127,4 +127,5 @@ TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 22. Fix black screen issue	
 	- Missing something in screen setup ? 
 	- Needs to be glm::vec3 ? why
+	- FIXED: was incrementing numSamples every pixel ! 
 

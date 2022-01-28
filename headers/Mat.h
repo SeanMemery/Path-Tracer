@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vec3.h"
+#include "ext/imgui.h"
 
 // Lambertian: 0, Light: 1, Metal: 2, Dielectric: 3
 
@@ -13,10 +14,10 @@ public:
      : matType(_matType), alb(_alb), blur(_blur), RI(_RI) {}
 
     // ImGui Edit Screen
-    void ImGuiEdit() {
-        ImGui::Text("");
+    bool ImGuiEdit() {
 		ImGui::Text("--------Mat--------");
-        ImGui::SliderInt("Mat Type", &matType, 0, 3);
+        bool ref = false;
+        ref |= ImGui::SliderInt("Mat Type", &matType, 0, 3);
         switch(matType) {
             case 0:
                 ImGui::Text("Lambertian");
@@ -32,11 +33,13 @@ public:
                 break;
         }
 		float a[3]{ alb.x,alb.y,alb.z };
-		if (ImGui::InputFloat3("Mat Diffuse", a))
+		if (ImGui::InputFloat3("Mat Diffuse", a)) {
 		    alb = vec3(a[0], a[1], a[2]);
-        ImGui::InputFloat("Mat Blur", &blur);
-        ImGui::InputFloat("Mat Refractive Index", &RI);
-		ImGui::Text("-------------------"); 
+            ref = true;
+        }
+        ref |= ImGui::InputFloat("Mat Blur", &blur);
+        ref |= ImGui::InputFloat("Mat Refractive Index", &RI);
+        return ref;
     }
 
     vec3 alb;

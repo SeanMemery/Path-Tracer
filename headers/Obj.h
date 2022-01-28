@@ -13,7 +13,7 @@ public:
     Obj() {};
 
     // ImGui Edit Screen
-    virtual void ImGuiEdit() = 0;
+    virtual bool ImGuiEdit() = 0;
 
 	// Rendering Information
 	virtual std::vector<float> GetData()=0;
@@ -21,6 +21,7 @@ public:
     vec3 pos;
     Mat material;
 	int type;
+	bool inImportantList;
 };
 
 class Sphere : public Obj {
@@ -33,14 +34,16 @@ public:
 		type = 0;
     }
 
-    void ImGuiEdit() {
-		ImGui::Text("");
+    bool ImGuiEdit() {
 		ImGui::Text("--------Sphere-------");
+		bool ref = false;
 		float sPos[3]{ pos.x,pos.y,pos.z };
-		if (ImGui::InputFloat3("Mid Position", sPos))
+		if (ImGui::InputFloat3("Mid Position", sPos)) {
 		    pos = vec3(sPos[0], sPos[1], sPos[2]);
-		ImGui::InputFloat("Radius", &r);
-		ImGui::Text("-------------------");
+			ref = true;
+		}
+		ref |= ImGui::InputFloat("Radius", &r);
+		return ref;
 	}
 
 	std::vector<float> GetData() {
@@ -82,26 +85,32 @@ public:
 class AABB : public Obj {
 public:
 
-    AABB(Mat _material, vec3 _min, vec3 _max) 
+    AABB(vec3 _pos, Mat _material, vec3 _min, vec3 _max) 
     : min(_min), max(_max) {
-        pos = _min + _max;
+        pos = _pos;
         material = _material; 
 		type = 1;
     }
 
-    void ImGuiEdit() {
-		ImGui::Text("");
+    bool ImGuiEdit() {
 		ImGui::Text("--------AABB-------");
+		bool ref = false;
 		float sPos[3]{ pos.x,pos.y,pos.z };
-		if (ImGui::InputFloat3("Mid Position", sPos))
+		if (ImGui::InputFloat3("Mid Position", sPos)) {
 		    pos = vec3(sPos[0], sPos[1], sPos[2]);
+			ref = true;
+		}
 		float minA[3]{min.x,min.y,min.z };
-		if (ImGui::InputFloat3("Relative Min", minA))
+		if (ImGui::InputFloat3("Relative Min", minA)) {
 		    min = vec3(minA[0], minA[1], minA[2]);
+			ref = true;
+		}
 		float maxA[3]{max.x,max.y,max.z };
-		if (ImGui::InputFloat3("Relative Max", maxA))
+		if (ImGui::InputFloat3("Relative Max", maxA)) {
 		    max = vec3(maxA[0], maxA[1], maxA[2]);
-		ImGui::Text("-------------------");
+			ref = true;
+		}
+		return ref;
 	}
 
 	std::vector<float> GetData() {
@@ -118,13 +127,13 @@ public:
 		vec.push_back(material.matType);
 		vec.push_back(0);
 
-		vec.push_back(min.x);
-		vec.push_back(min.y);
-		vec.push_back(min.z);
+		vec.push_back(pos.x + min.x);
+		vec.push_back(pos.y + min.y);
+		vec.push_back(pos.z + min.z);
 
-		vec.push_back(max.x);
-		vec.push_back(max.y);
-		vec.push_back(max.z);
+		vec.push_back(pos.x + max.x);
+		vec.push_back(pos.y + max.y);
+		vec.push_back(pos.z + max.z);
 
 		vec.push_back(material.blur);
 		vec.push_back(material.RI);

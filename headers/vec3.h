@@ -25,8 +25,23 @@ public:
     }
     void operator+=(vec3 eq) {
         x += eq.x;
-        y += eq.z;
+        y += eq.y;
         z += eq.z;
+    }
+    void operator-=(vec3 eq) {
+        x -= eq.x;
+        y -= eq.y;
+        z -= eq.z;
+    }
+    void operator/=(float f) {
+        x /= f;
+        y /= f;
+        z /= f;
+    }
+    void operator*=(vec3 v) {
+        x *= v.x;
+        y *= v.y;
+        z *= v.z;
     }
     vec3 operator*(float f) {
         return vec3(x*f, y*f, z*f);
@@ -37,12 +52,15 @@ public:
     vec3 operator/(float f) {
         return vec3(x/f, y/f, z/f);
     }
+    vec3 operator-(){
+        return vec3(-x, -y, -z);
+    }
 
     float dot(vec3 d) {
         return x*d.x + y*d.y + z*d.z;
     }
     float square() {
-        return x*x + y*y + z*z;
+        return (x*x + y*y + z*z);
     }
     vec3 normalize() {
         float sum = sqrt(square());

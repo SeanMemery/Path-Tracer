@@ -1,18 +1,31 @@
 #pragma once
 
 #include <string>
-#include "Camera.h"
 #include "Scene.h"
 
-extern int xRes, yRes, maxDepth, currentRenderer, rayCount, sampleCount;
+class Camera;
+class Denoiser;
+
+// Settings
+extern int xRes, yRes, xScreen, yScreen, maxDepth, currentRenderer, rayCount, sampleCount;
 extern bool denoising, moving, quit, rendering, refresh;
 extern unsigned int mainTexture; 
 extern std::string skepuBackend;
+extern double renderTime;
 
+// Post Processing 
+extern float exposure, g;
+extern int displayMetric;
+
+// Objects
 extern Scene scene;
 extern ImGuiWindowFlags window_flags;
 extern Camera cam;
-extern vec3* screen;
+extern Denoiser denoiser;
+
+// Screens
+extern vec3* preScreen;
+extern vec3* postScreen;
 
 
 
