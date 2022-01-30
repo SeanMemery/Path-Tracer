@@ -1,3 +1,11 @@
 1. SkePU warning given when running without updated gou inf. SkePU doesnt recognise GPU on laptop, need to edit 
     skepu-headers/src/skepu3/backend/device_cu.h
 adding gpu information (120, 32)
+
+2. For OMP implementations, watch out for different threads overriding vairables i.e. dont declare a common variable outside of the omp loops
+    - Not necessary in SkePU OMP TALK ABOUT
+
+3. Huge issue with worldPos
+    - creating stdDev squared thats smaller than actual difference between nearby values
+    - This leads to large value causing a weight value of 0, ruining the whole sum
+    - causes a weight value of 1 only at the origin pixel, leading to an unchanged filtered image

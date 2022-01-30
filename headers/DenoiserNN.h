@@ -10,6 +10,11 @@
 #include <sstream>
 #include <string>
 
+using namespace std::chrono;
+typedef std::chrono::high_resolution_clock clock_;
+typedef std::chrono::duration<double, std::milli > milli_second_;
+#include <chrono>
+
 struct PrimaryFeatures{
 
     // Primary features, averaged when vectors
@@ -91,27 +96,85 @@ public:
     // Need to generate the 36 secondary features from these primary features
     // NN generates the variances of the primary features from these secondary features
 
-    // DenoisingInf -> primary features
-    void GeneratePFeatures();
-    // primary features -> secondary features
-    void GenerateSFeatures();
-    // secondary features -> variances (through NN)
-    void ComputeVariances();
+    // Backend Functions
+    void ForwardProp() {
+        switch(denoisingBackend) {
+            case 0:
+                CPUForwardProp();
+                break;
+            case 1:
+                OMPForwardProp();
+                break;
+            case 2:
+                CUDAForwardProp();
+                break;
+            case 3:
+                OpenGLForwardProp();
+                break;
+            case 4:
+                SkePUForwardProp();
+                break;
+            case 5:
+                SkePUForwardProp();
+                break;
+            case 6:
+                SkePUForwardProp();
+                break;
+        }
+    }
+    void BackProp() {
+        switch(denoisingBackend) {
+            case 0:
+                CPUBackProp();
+                break;
+            case 1:
+                OMPBackProp();
+                break;
+            case 2:
+                CUDABackProp();
+                break;
+            case 3:
+                OpenGLBackProp();
+                break;
+            case 4:
+                SkePUBackProp();
+                break;
+            case 5:
+                SkePUBackProp();
+                break;
+            case 6:
+                SkePUBackProp();
+                break;
+        }
+    }
+
+    // Forward Prop
+    void CPUForwardProp();
+    void OMPForwardProp();
+    void CUDAForwardProp(){}
+    void OpenGLForwardProp(){}
+    void SkePUForwardProp(){}
+
+    // Back Prop
+    vec3 CPUFilterDerivative(int j, int i, int var);
+    void CPUBackProp();
+    vec3 OMPFilterDerivative(int j, int i, int var);
+    void OMPBackProp();
+    void CUDABackProp(){}
+    void OpenGLBackProp(){}
+    void SkePUBackProp(){}
+
     void TrainNN();
 
     void GenRelMSE();
     void RandomizeWeights();
     void OutputWeights();
     bool LoadWeights();
-    bool TrainingUpdateScreen(int samp, double time);
-    void BackPropWeights();
-    float GetFilterDerivative(int j, int i, int var);
-
     void InitTraining();
     void EndTraining();
-
     void InitScreens();
     void DeleteScreens();
+    void AppendTrainingFile();
 
     DenoiserNN() {
         pFeatures = new PrimaryFeatures[xRes*yRes];

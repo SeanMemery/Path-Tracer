@@ -36,8 +36,8 @@ public:
     void InitScreens();
     void DeleteScreens();
 
-    // 0: Regular View,  denoised image, 2: normal, 3: albedo1, 4: albedo2, 5: directLight, 6: worldPos
-    const char* displayNames[7] = {"Image", "Denoised Col", "Normal", "Albedo 1", "Albedo 2", "Direct Light", "World Pos"};
+    // 0: Regular View,  denoised image, 2: normal, 3: albedo1, 4: albedo2, 5: directLight, 6: worldPos, 7 targetCol
+    const char* displayNames[8] = {"Image", "Denoised Col", "Normal", "Albedo 1", "Albedo 2", "Direct Light", "World Pos", "Target Col"};
 
     // ImGui Vars
     int objEdit;

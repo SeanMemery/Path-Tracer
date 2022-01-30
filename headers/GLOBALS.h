@@ -15,7 +15,7 @@ extern int xRes, yRes, xScreen, yScreen, maxDepth, currentRenderer, rayCount, sa
 extern bool denoising, moving, quit, rendering, refresh;
 extern unsigned int mainTexture; 
 extern std::string skepuBackend;
-extern double renderTime, denoiseTime, totalTime;
+extern double renderTime, denoiseTime, epochTime, totalTime;
 
 // Post Processing 
 extern float exposure, g;
@@ -23,8 +23,9 @@ extern int displayMetric;
 
 // Denoising
 extern DenoiserNN denoiserNN;
-extern int denoisingN, trainingEpoch;
-extern bool training;
+extern int denoisingN, trainingEpoch, denoisingBackend;
+extern std::string denoisingSkePUBackend;
+extern bool training, weightsLoaded;
 
 // Objects
 extern Scene scene;
@@ -49,6 +50,7 @@ extern vec3* targetCol;
 
 struct DenoisingInf {
     vec3 stdDevVecs[6];
+    float stdDev[6];
     float variances[7];
     float wcSum;
 
@@ -56,8 +58,10 @@ struct DenoisingInf {
         int c = 0;
         for (c=0; c<6; c++)
             stdDevVecs[c] = vec3();
-        for (c=0; c<7; c++)
-        variances[c] = 0.0f;
+        for (c=0; c<7; c++) {
+            stdDev[c] = 0.0f;
+            variances[c] = 0.0f;
+        }
         wcSum = 0.0f;
     }
 };

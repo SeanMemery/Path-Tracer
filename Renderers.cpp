@@ -664,6 +664,7 @@
 
 				// Denoiser info
 				if (denoising) {
+                    auto info = &denoisingInf[index];
 					normal[index]      += vec3(ret.normal[0], ret.normal[1], ret.normal[2]);
 					albedo1[index]     += vec3(ret.albedo1[0], ret.albedo1[1], ret.albedo1[2]);
 					albedo2[index]     += vec3(ret.albedo2[0], ret.albedo2[1], ret.albedo2[2]);
@@ -671,43 +672,48 @@
 					worldPos[index]    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
 
 					// Standard Deviations
-                    denoisingInf[index].stdDevVecs[0] += vec3(
+                    info->stdDevVecs[0] += vec3(
                          pow(preScreen[index].x/sampleCount - ret.xyz[0],2),
                          pow(preScreen[index].y/sampleCount - ret.xyz[1],2),     
                          pow(preScreen[index].z/sampleCount - ret.xyz[2],2));
-					denoisingInf[index].stdDevVecs[1] += vec3(
+					info->stdDevVecs[1] += vec3(
                          pow(normal[index].x/sampleCount - ret.normal[0],2),
                          pow(normal[index].y/sampleCount - ret.normal[1],2),     
                          pow(normal[index].z/sampleCount - ret.normal[2],2));
-					denoisingInf[index].stdDevVecs[2] += vec3(
+					info->stdDevVecs[2] += vec3(
                         pow(albedo1[index].x/sampleCount - ret.albedo1[0] ,2),
 					    pow(albedo1[index].y/sampleCount - ret.albedo1[1],2),    
 					    pow(albedo1[index].z/sampleCount - ret.albedo1[2],2));
-					denoisingInf[index].stdDevVecs[3] += vec3(
+					info->stdDevVecs[3] += vec3(
                         pow(albedo2[index].x/sampleCount - ret.albedo2[0] ,2),
 					    pow(albedo2[index].y/sampleCount - ret.albedo2[1],2),    
 					    pow(albedo2[index].z/sampleCount - ret.albedo2[2],2));
-					denoisingInf[index].stdDevVecs[4] += vec3(
+					info->stdDevVecs[4] += vec3(
                         pow(worldPos[index].x/sampleCount - ret.worldPos[0],2),
 					    pow(worldPos[index].y/sampleCount - ret.worldPos[1],2),   
 					    pow(worldPos[index].z/sampleCount - ret.worldPos[2],2));
-					denoisingInf[index].stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0);      
+					info->stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0); 
+
+                    info->stdDev[0] = (info->stdDevVecs[0][0] + info->stdDevVecs[0][1] + info->stdDevVecs[0][2])/sampleCount;
+                    info->stdDev[1] = (info->stdDevVecs[1][0] + info->stdDevVecs[1][1] + info->stdDevVecs[1][2])/sampleCount;
+                    info->stdDev[2] = (info->stdDevVecs[2][0] + info->stdDevVecs[2][1] + info->stdDevVecs[2][2])/sampleCount;
+                    info->stdDev[3] = (info->stdDevVecs[3][0] + info->stdDevVecs[3][1] + info->stdDevVecs[3][2])/sampleCount;
+                    info->stdDev[4] = (info->stdDevVecs[4][0] + info->stdDevVecs[4][1] + info->stdDevVecs[4][2])/sampleCount;
+                    info->stdDev[5] = info->stdDevVecs[5][0]/sampleCount;
 				}
 			}
 		}  
     }
     void Renderers::OMPRender() {
-        ReturnStruct ret;
-        int index;
         sampleCount++;
         rayCount = 0;
-        RandomSeeds s;
         #pragma omp parallel for
 		for (int j = 0; j < yRes; j++) {
             #pragma omp parallel for
 			for (int i = 0; i < xRes; i++) {
 
                 // Generate random seeds for each pixel
+                RandomSeeds s;
 				uint64_t s0 = constants.GloRandS[0];
 				uint64_t s1 = constants.GloRandS[1];
 				s1 ^= s0;
@@ -720,14 +726,15 @@
                 skepuInd.row = j;
                 skepuInd.col = i;
                 
-				ret = RenderFunc(skepuInd, s, constants);
-				index = j*xRes + i;
+				ReturnStruct ret = RenderFunc(skepuInd, s, constants);
+				int index = j*xRes + i;
 
                 preScreen[index] += vec3(ret.xyz[0], ret.xyz[1], ret.xyz[2]);
 				rayCount += ret.raysSent;
 
 				// Denoiser info
 				if (denoising) {
+                    auto info = &denoisingInf[index];
 					normal[index]      += vec3(ret.normal[0], ret.normal[1], ret.normal[2]);
 					albedo1[index]     += vec3(ret.albedo1[0], ret.albedo1[1], ret.albedo1[2]);
 					albedo2[index]     += vec3(ret.albedo2[0], ret.albedo2[1], ret.albedo2[2]);
@@ -735,27 +742,34 @@
 					worldPos[index]    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
 
 					// Standard Deviations
-                    denoisingInf[index].stdDevVecs[0] += vec3(
+                    info->stdDevVecs[0] += vec3(
                          pow(preScreen[index].x/sampleCount - ret.xyz[0],2),
                          pow(preScreen[index].y/sampleCount - ret.xyz[1],2),     
                          pow(preScreen[index].z/sampleCount - ret.xyz[2],2));
-					denoisingInf[index].stdDevVecs[1] += vec3(
+					info->stdDevVecs[1] += vec3(
                          pow(normal[index].x/sampleCount - ret.normal[0],2),
                          pow(normal[index].y/sampleCount - ret.normal[1],2),     
                          pow(normal[index].z/sampleCount - ret.normal[2],2));
-					denoisingInf[index].stdDevVecs[2] += vec3(
+					info->stdDevVecs[2] += vec3(
                         pow(albedo1[index].x/sampleCount - ret.albedo1[0] ,2),
 					    pow(albedo1[index].y/sampleCount - ret.albedo1[1],2),    
 					    pow(albedo1[index].z/sampleCount - ret.albedo1[2],2));
-					denoisingInf[index].stdDevVecs[3] += vec3(
+					info->stdDevVecs[3] += vec3(
                         pow(albedo2[index].x/sampleCount - ret.albedo2[0] ,2),
 					    pow(albedo2[index].y/sampleCount - ret.albedo2[1],2),    
 					    pow(albedo2[index].z/sampleCount - ret.albedo2[2],2));
-					denoisingInf[index].stdDevVecs[4] += vec3(
+					info->stdDevVecs[4] += vec3(
                         pow(worldPos[index].x/sampleCount - ret.worldPos[0],2),
 					    pow(worldPos[index].y/sampleCount - ret.worldPos[1],2),   
 					    pow(worldPos[index].z/sampleCount - ret.worldPos[2],2));
-					denoisingInf[index].stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0);      
+					info->stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0); 
+
+                    info->stdDev[0] = (info->stdDevVecs[0][0] + info->stdDevVecs[0][1] + info->stdDevVecs[0][2])/sampleCount;
+                    info->stdDev[1] = (info->stdDevVecs[1][0] + info->stdDevVecs[1][1] + info->stdDevVecs[1][2])/sampleCount;
+                    info->stdDev[2] = (info->stdDevVecs[2][0] + info->stdDevVecs[2][1] + info->stdDevVecs[2][2])/sampleCount;
+                    info->stdDev[3] = (info->stdDevVecs[3][0] + info->stdDevVecs[3][1] + info->stdDevVecs[3][2])/sampleCount;
+                    info->stdDev[4] = (info->stdDevVecs[4][0] + info->stdDevVecs[4][1] + info->stdDevVecs[4][2])/sampleCount;
+                    info->stdDev[5] = info->stdDevVecs[5][0]/sampleCount;
 				}
 			}
 		}  
@@ -798,6 +812,7 @@
         int index;
         sampleCount++;
         rayCount = 0;
+        DenoisingInf* info;
 		for (int j = 0; j < yRes; j++) {
 			for (int i = 0; i < xRes; i++) {
 				ret = outputContainer(j, i);
@@ -808,6 +823,7 @@
 
 				// Denoiser info
 				if (denoising) {
+                    info = &denoisingInf[index];
 					normal[index]      += vec3(ret.normal[0], ret.normal[1], ret.normal[2]);
 					albedo1[index]     += vec3(ret.albedo1[0], ret.albedo1[1], ret.albedo1[2]);
 					albedo2[index]     += vec3(ret.albedo2[0], ret.albedo2[1], ret.albedo2[2]);
@@ -815,27 +831,34 @@
 					worldPos[index]    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
 
 					// Standard Deviations
-                    denoisingInf[index].stdDevVecs[0] += vec3(
+                    info->stdDevVecs[0] += vec3(
                          pow(preScreen[index].x/sampleCount - ret.xyz[0],2),
                          pow(preScreen[index].y/sampleCount - ret.xyz[1],2),     
                          pow(preScreen[index].z/sampleCount - ret.xyz[2],2));
-					denoisingInf[index].stdDevVecs[1] += vec3(
+					info->stdDevVecs[1] += vec3(
                          pow(normal[index].x/sampleCount - ret.normal[0],2),
                          pow(normal[index].y/sampleCount - ret.normal[1],2),     
                          pow(normal[index].z/sampleCount - ret.normal[2],2));
-					denoisingInf[index].stdDevVecs[2] += vec3(
-                        pow(albedo1[index].x/sampleCount - ret.albedo1[0] ,2),
+					info->stdDevVecs[2] += vec3(
+                        pow(albedo1[index].x/sampleCount - ret.albedo1[0],2),
 					    pow(albedo1[index].y/sampleCount - ret.albedo1[1],2),    
 					    pow(albedo1[index].z/sampleCount - ret.albedo1[2],2));
-					denoisingInf[index].stdDevVecs[3] += vec3(
-                        pow(albedo2[index].x/sampleCount - ret.albedo2[0] ,2),
+					info->stdDevVecs[3] += vec3(
+                        pow(albedo2[index].x/sampleCount - ret.albedo2[0],2),
 					    pow(albedo2[index].y/sampleCount - ret.albedo2[1],2),    
 					    pow(albedo2[index].z/sampleCount - ret.albedo2[2],2));
-					denoisingInf[index].stdDevVecs[4] += vec3(
+					info->stdDevVecs[4] += vec3(
                         pow(worldPos[index].x/sampleCount - ret.worldPos[0],2),
 					    pow(worldPos[index].y/sampleCount - ret.worldPos[1],2),   
 					    pow(worldPos[index].z/sampleCount - ret.worldPos[2],2));
-					denoisingInf[index].stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0);      
+					info->stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0); 
+
+                    info->stdDev[0] = (info->stdDevVecs[0][0] + info->stdDevVecs[0][1] + info->stdDevVecs[0][2])/sampleCount;
+                    info->stdDev[1] = (info->stdDevVecs[1][0] + info->stdDevVecs[1][1] + info->stdDevVecs[1][2])/sampleCount;
+                    info->stdDev[2] = (info->stdDevVecs[2][0] + info->stdDevVecs[2][1] + info->stdDevVecs[2][2])/sampleCount;
+                    info->stdDev[3] = (info->stdDevVecs[3][0] + info->stdDevVecs[3][1] + info->stdDevVecs[3][2])/sampleCount;
+                    info->stdDev[4] = (info->stdDevVecs[4][0] + info->stdDevVecs[4][1] + info->stdDevVecs[4][2])/sampleCount;
+                    info->stdDev[5] =  info->stdDevVecs[5][0]/sampleCount;
 				}
 			}
 		}        

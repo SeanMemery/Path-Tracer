@@ -15,7 +15,6 @@ public:
 
     // ImGui Edit Screen
     bool ImGuiEdit() {
-		ImGui::Text("--------Mat--------");
         bool ref = false;
         ref |= ImGui::SliderInt("Mat Type", &matType, 0, 3);
         switch(matType) {

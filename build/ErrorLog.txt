@@ -1,0 +1,13 @@
+Res: (362x204), Samples: 4, L Rate: 1e-06
+Epoch RelMSE
+0 24128.7
+1 31937.9
+2 19191.7
+3 26140.5
+4 19714.1
+5 17364.1
+6 nan
+7 nan
+8 nan
+9 nan
+10 nan

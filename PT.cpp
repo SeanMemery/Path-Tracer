@@ -6,7 +6,7 @@ unsigned int mainTexture;
 float exposure, g;
 int displayMetric;
 std::string skepuBackend;
-double renderTime, denoiseTime, totalTime;
+double renderTime, denoiseTime, epochTime, totalTime;
 
 Scene scene;
 ImGuiWindowFlags window_flags;
@@ -16,8 +16,9 @@ Renderers renderer;
 
 // Denoising
 DenoiserNN denoiserNN;
-int denoisingN, trainingEpoch;
-bool training;
+int denoisingN, trainingEpoch, denoisingBackend;
+std::string denoisingSkePUBackend;
+bool training, weightsLoaded;
 
 // Screens
 vec3* preScreen;
@@ -45,6 +46,7 @@ PT::PT() :
     yScreen = 1080 * screenPerc;
     maxDepth = 5;
     currentRenderer = 6;
+    denoisingBackend = 1;
     rendering = true;
     renderer = Renderers();
 
@@ -78,7 +80,6 @@ void PT::RenderLoop() {
     while(!quit) {
 
         ProcessInput();
-
         ImGui();
 
         if (refresh) {
@@ -134,6 +135,9 @@ void PT::PostProcess() {
                 case 6:
                     col = vec3(1.0f/fabs(worldPos[ind].x / sampleCount), 1.0f/fabs(worldPos[ind].y / sampleCount), 1.0f/fabs(worldPos[ind].z / sampleCount));
                     break;
+                case 7:
+                    col = targetCol[ind];
+                    break;
             }
         }
 
@@ -161,16 +165,16 @@ void PT::DeleteScreens() {
 }
 
 void PT::InitScreens() {
-    preScreen = new vec3[xRes*yRes];
-    postScreen = new vec3[xRes*yRes];
-    normal = new vec3[xRes*yRes];
-    albedo1 = new vec3[xRes*yRes];
-    albedo2 = new vec3[xRes*yRes];
-    directLight = new vec3[xRes*yRes];
-    worldPos = new vec3[xRes*yRes];
-    denoisedCol = new vec3[xRes*yRes];
-    targetCol = new vec3[xRes*yRes];
-    denoisingInf = new DenoisingInf[xRes*yRes];
+    preScreen      = new vec3[xRes*yRes];
+    postScreen     = new vec3[xRes*yRes];
+    normal         = new vec3[xRes*yRes];
+    albedo1        = new vec3[xRes*yRes];
+    albedo2        = new vec3[xRes*yRes];
+    directLight    = new vec3[xRes*yRes];
+    worldPos       = new vec3[xRes*yRes];
+    denoisedCol    = new vec3[xRes*yRes];
+    targetCol      = new vec3[xRes*yRes];
+    denoisingInf   = new DenoisingInf[xRes*yRes];
 }
 
 void PT::SwitchRenderModes(){
@@ -190,7 +194,7 @@ void PT::SwitchRenderModes(){
     totalTime = 0;
 
     // Reset Screens
-    DeleteScreens();
+    //DeleteScreens();
     InitScreens();
 }
 
@@ -209,7 +213,7 @@ void PT::ProcessInput() {
 		}
 	}
 
-	if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape)))
+	if (!training && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape)))
 		quit = true;
 
     if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Space)))
@@ -269,13 +273,14 @@ void PT::ImGui() {
 
         refresh |= ImGui::SliderFloat("Resolution Strength ( 1920x1080 )", &resPerc, 0.01f, 2.0f);
         refresh |= ImGui::SliderFloat("Screen Size ( 1920x1080 )", &screenPerc, 0.01f, 2.0f);
+        ImGui::Text("Resolution: (%d x %d)", xRes, yRes);
+        ImGui::Text("Screen Size: (%d x %d)", xScreen, yScreen);
 
         // Post Process
         ImGui::SliderFloat("Exposure", &exposure, 1.0f, 10.0f);
         ImGui::SliderFloat("Gamma", &g, 1.0f, 10.0f);
 
-        ImGui::Text("Screen Size: (%d x %d)", xScreen, yScreen);
-        ImGui::Text("Resolution: (%d x %d)", xRes, yRes);
+
         ImGui::Text("Max Depth: %d", maxDepth);
         refresh |= ImGui::SliderInt("Rendering Mode", &currentRenderer, 0, 6);
         switch(currentRenderer) {
@@ -363,27 +368,58 @@ void PT::ImGui() {
 
             ImGui::Begin("Denoisng", NULL, 0);
 
-            // Update screen texture based on input metric
-            // 0: Regular View,  denoised image, 2: normal, 3: albedo1, 4: albedo2, 5: directLight, 6: worldPos
+            ImGui::SliderInt("Denoising Backend", &denoisingBackend, 0, 6);
+                switch(denoisingBackend) {
+                    case 0:
+                        ImGui::Text("CPU");
+                        break;
+                    case 1:
+                        ImGui::Text("OpenMP");
+                        break;
+                    case 2:
+                        ImGui::Text("CUDA");
+                        break;
+                    case 3:
+                        ImGui::Text("OpenGL");
+                        break;
+                    case 4:
+                        ImGui::Text("SkePU CPU");
+                        denoisingSkePUBackend = "cpu";
+                        break;
+                    case 5:
+                        ImGui::Text("SkePU OpenMP");
+                        denoisingSkePUBackend = "openmp";
+                        break;
+                    case 6:
+                        ImGui::Text("SkePU CUDA");
+                        denoisingSkePUBackend = "cuda";
+                        break;
+                }
 
-            ImGui::SliderInt("Display", &displayMetric, 0, 6);
+            // Update screen texture based on input metric
+            // 0: Regular View,  denoised image, 2: normal, 3: albedo1, 4: albedo2, 5: directLight, 6: worldPos, 7 tagetCol
+
+            ImGui::SliderInt("Display", &displayMetric, 0, 7);
             ImGui::Text(displayNames[displayMetric]);
 
             if (!rendering) {
 
                 ImGui::InputInt("Denoising N", &denoisingN);
 
-                if (ImGui::Button("Denoise Image"))
-                    denoiser.denoise();
+
 
                 ImGui::Text("Denoise Time: %.3f", denoiseTime);
 
                 ImGui::Text("");
                     
-                if (ImGui::Button("Randomize Weights"))
-                    denoiserNN.RandomizeWeights();
-                if (ImGui::Button("Ouput Weights"))
-                    denoiserNN.OutputWeights();
+                if (!weightsLoaded) {
+                    if (ImGui::Button("Load Weights"))
+                        denoiserNN.LoadWeights();                 
+                } else {
+                    if (ImGui::Button("Denoise Image"))
+                        denoiser.denoise();
+                }
+                             
 
                 ImGui::InputFloat("Learning Rate", &denoiserNN.learningRate);
                 ImGui::InputInt("Sample for Training", &denoiserNN.samplesWhenTraining);
@@ -393,10 +429,17 @@ void PT::ImGui() {
                         denoiserNN.InitTraining();
                 } else {
                     ImGui::Text("Epoch: %d", trainingEpoch);
+                    ImGui::Text("Epoch Time: %.3f", epochTime);
                     ImGui::Text("RelMSE: %.3f", denoiserNN.relMSE);
-                    if (ImGui::Button("Stop Training"))
+                    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape)) || ImGui::Button("Stop Training"))
                         denoiserNN.EndTraining();   
                 }
+
+                if (ImGui::Button("Randomize Weights (Overwrite File!)")) {
+                    denoiserNN.RandomizeWeights();
+                    denoiserNN.OutputWeights();
+                    denoiserNN.LoadWeights();
+                }   
 
 
             }

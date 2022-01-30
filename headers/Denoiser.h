@@ -42,6 +42,5 @@ public:
     void SkePUDenoise();
 
     static FilterVals SkePUFilter(skepu::Region2D<GPUInf> r);
-    float getMSE();
     void saveTargetCol();
 };
