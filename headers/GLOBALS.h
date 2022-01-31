@@ -15,6 +15,7 @@ extern int xRes, yRes, xScreen, yScreen, maxDepth, currentRenderer, rayCount, sa
 extern bool denoising, moving, quit, rendering, refresh;
 extern unsigned int mainTexture; 
 extern std::string skepuBackend;
+extern float randSamp;
 extern double renderTime, denoiseTime, epochTime, totalTime;
 
 // Post Processing 

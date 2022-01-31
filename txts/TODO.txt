@@ -129,3 +129,12 @@ TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	- Needs to be glm::vec3 ? why
 	- FIXED: was incrementing numSamples every pixel ! 
 
+23. List of things to do as of 32/01/22:
+	- More robust rendering algorithm i.e. get a real one
+	- Scene loading
+		- Models on SkePU
+	- Skepu denoising and training
+	- CUDA and OpenGL rendering
+
+24. Crashing when moving around a bunch, probably from updating constants so much
+

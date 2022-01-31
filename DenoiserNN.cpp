@@ -220,7 +220,7 @@ void DenoiserNN::CPUForwardProp() {
 
                     // Adjust values
                     for (int v = 0; v < 9; v++) {
-                        valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[0]);
+                        valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[2]);
                     }
 
                     // Reset median getter
@@ -253,7 +253,7 @@ void DenoiserNN::CPUForwardProp() {
                         }
                     }
                     // Final MAD value
-                    s->MAD[feature] = medianGetter[0];
+                    s->MAD[feature] = medianGetter[2];
                 }
                 // L
                 s->L = 1.0f/sampleCount;
@@ -516,7 +516,7 @@ void DenoiserNN::OMPForwardProp() {
 
                     // Adjust values
                     for (int v = 0; v < 9; v++) {
-                        valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[0]);
+                        valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[2]);
                     }
 
                     // Reset median getter
@@ -549,7 +549,7 @@ void DenoiserNN::OMPForwardProp() {
                         }
                     }
                     // Final MAD value
-                    s->MAD[feature] = medianGetter[0];
+                    s->MAD[feature] = medianGetter[2];
                 }
                 // L
                 s->L = 1.0f/sampleCount;
@@ -598,6 +598,377 @@ void DenoiserNN::OMPForwardProp() {
 
     }      
 
+}
+struct ForPropIn {
+
+    float normal;
+    float alb1;
+    float alb2;
+    float worldPos;
+    float directLight;
+    float stdDev[6];
+
+};
+struct ForPropOut {
+
+    float l2[10];
+    float l3[10];
+    float variances[6];
+
+    // Secondary Features
+    float meansSingle[5];
+    float sdSingle[5];
+    float meansBlock[5];
+    float sdBlock[5];
+    float gradients[5];
+    float meanDeviation[5];
+    float MAD[5];
+    float L;
+
+};
+struct SkePUFPConstants {
+
+    int samples;
+    float onetwo[360];
+    float twothree[100];
+    float threefour[70];
+
+};
+static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants constants) {
+
+
+    // Secondary Features
+    ForPropOut out;
+    {
+        // - K Means of single pixel, K std deviations of single pixel, K Means of 7x7 block, K std deviations of 7x7 block (20 total)
+        // - Magnitude of gradients of K features of single pixel (sobel operator) (5 total)
+        // - Sum of the abs difference between K of each pixel in 3x3 block and the mean of that 3x3 block (5 total)
+        // - MAD of K features, so median of values minus median value, in NxN block (5 total)
+        // - 1/totalSamples (1 total)
+
+        int ind, c = 0;
+        int ijInd = 0;
+        int jFixed, iFixed = 0;
+        float Gx[9] = { 1,  2,  1, 
+                        0,  0,  0, 
+                       -1, -2, -1};
+        float Gy[9] = { 1,  0,  -1, 
+                        2,  0,  -2, 
+                        1,  0,  -1};
+        int linearInd = 0;
+        float valuesForMAD[5][9];
+        float madMedians[5];
+        float medianGetter[5];
+
+        int K, i, j;
+
+        float meansForMD[5];
+        float GxSum[5];
+        float GySum[5];       
+
+        // K single Means
+        out.meansSingle[0] = r(0,0).normal;
+        out.meansSingle[1] = r(0,0).alb1;
+        out.meansSingle[2] = r(0,0).alb2;
+        out.meansSingle[3] = r(0,0).worldPos;
+        out.meansSingle[4] = r(0,0).directLight;
+
+        // K single std devs, same as denosiing inf values
+		out.sdSingle[0] = r(0,0).stdDev[1];
+		out.sdSingle[1] = r(0,0).stdDev[2];
+		out.sdSingle[2] = r(0,0).stdDev[3];
+		out.sdSingle[3] = r(0,0).stdDev[4];
+        out.sdSingle[4] = r(0,0).stdDev[5];
+
+        // K block means
+        for ( j = -3; j <= 3; j++) { 
+            for ( i = -3; i <= 3; i++) { 
+                out.meansBlock[0] += r(j, i).normal      / 49.0f; 
+                out.meansBlock[1] += r(j, i).alb1        / 49.0f; 
+                out.meansBlock[2] += r(j, i).alb2        / 49.0f; 
+                out.meansBlock[3] += r(j, i).worldPos    / 49.0f; 
+                out.meansBlock[4] += r(j, i).directLight / 49.0f; 
+                // 3x3 means for mean deviation
+                if (abs(j) <= 1 && abs(i) <= 1) {
+                    meansForMD[0] += r(j, i).normal      / 9.0f; 
+                    meansForMD[1] += r(j, i).alb1        / 9.0f; 
+                    meansForMD[2] += r(j, i).alb2        / 9.0f; 
+                    meansForMD[3] += r(j, i).worldPos    / 9.0f; 
+                    meansForMD[4] += r(j, i).directLight / 9.0f; 
+                }
+            }
+        }
+        // K block std dev (std dev of col to mean col, or avg of std dev of each ? )
+        for ( j = -3; j <= 3; j++) { 
+            for ( i = -3; i <= 3; i++) { 
+                out.sdBlock[0] += pow((r(j,i).normal      - out.meansBlock[0]),2)/ 49.0f; 
+                out.sdBlock[1] += pow((r(j,i).alb1        - out.meansBlock[1]),2)/ 49.0f; 
+                out.sdBlock[2] += pow((r(j,i).alb2        - out.meansBlock[2]),2)/ 49.0f; 
+                out.sdBlock[3] += pow((r(j,i).worldPos    - out.meansBlock[3]),2)/ 49.0f; 
+                out.sdBlock[4] += pow((r(j,i).directLight - out.meansBlock[4]),2)/ 49.0f; 
+            }
+        }
+        out.sdBlock[0] = sqrt(out.sdBlock[0]);
+        out.sdBlock[1] = sqrt(out.sdBlock[1]);
+        out.sdBlock[2] = sqrt(out.sdBlock[2]);
+        out.sdBlock[3] = sqrt(out.sdBlock[3]);
+        out.sdBlock[4] = sqrt(out.sdBlock[4]);
+        // K Gradients (3x3 Block)
+        // K Mean Deviations (3x3 block)
+        for ( j = -1; j <= 1; j++) { 
+            for ( i = -1; i <= 1; i++) { 
+                linearInd = (j+1)*3 + i + 1;
+                // Sobel operator
+                GxSum[0] += Gx[linearInd]*r(j,i).normal;
+                GySum[0] += Gy[linearInd]*r(j,i).normal;
+                GxSum[1] += Gx[linearInd]*r(j,i).alb1;
+                GySum[1] += Gy[linearInd]*r(j,i).alb1;
+                GxSum[2] += Gx[linearInd]*r(j,i).alb2;
+                GySum[2] += Gy[linearInd]*r(j,i).alb2;
+                GxSum[3] += Gx[linearInd]*r(j,i).worldPos;
+                GySum[3] += Gy[linearInd]*r(j,i).worldPos;
+                GxSum[4] += Gx[linearInd]*r(j,i).directLight;
+                GySum[4] += Gy[linearInd]*r(j,i).directLight;
+
+                // Mean Abs Diff
+                out.meanDeviation[0] += fabs(r(j,i).normal      - meansForMD[0])/ 9.0f; 
+                out.meanDeviation[1] += fabs(r(j,i).alb1        - meansForMD[1])/ 9.0f; 
+                out.meanDeviation[2] += fabs(r(j,i).alb2        - meansForMD[2])/ 9.0f; 
+                out.meanDeviation[3] += fabs(r(j,i).worldPos    - meansForMD[3])/ 9.0f; 
+                out.meanDeviation[4] += fabs(r(j,i).directLight - meansForMD[4])/ 9.0f; 
+
+                // Collect MAD Values
+                valuesForMAD[0][linearInd] = r(j,i).normal     ;
+                valuesForMAD[1][linearInd] = r(j,i).alb1       ;
+                valuesForMAD[2][linearInd] = r(j,i).alb2       ;
+                valuesForMAD[3][linearInd] = r(j,i).worldPos   ;
+                valuesForMAD[4][linearInd] = r(j,i).directLight;
+            }
+        }
+        out.gradients[0] = sqrt(GxSum[0]*GxSum[0] + GySum[0]*GySum[0]);
+        out.gradients[1] = sqrt(GxSum[1]*GxSum[1] + GySum[1]*GySum[1]);
+        out.gradients[2] = sqrt(GxSum[2]*GxSum[2] + GySum[2]*GySum[2]);
+        out.gradients[3] = sqrt(GxSum[3]*GxSum[3] + GySum[3]*GySum[3]);
+        out.gradients[4] = sqrt(GxSum[4]*GxSum[4] + GySum[4]*GySum[4]);
+        // MAD
+        for (int feature = 0; feature < 5; feature++) {
+
+            // Reset median getter
+            medianGetter[0] = 0.0f;
+            medianGetter[1] = 0.0f;
+            medianGetter[2] = 0.0f;
+            medianGetter[3] = 0.0f;
+            medianGetter[4] = 0.0f;
+
+            // Get median
+            for (int v = 0; v < 9; v++) {
+                for (int m = 0; m < 5; m++) {
+                    if (valuesForMAD[feature][v] > medianGetter[m]) {
+                        if (m == 4) {
+                            // Shift all values down
+                            medianGetter[3] = medianGetter[4];
+                            medianGetter[2] = medianGetter[3];
+                            medianGetter[1] = medianGetter[2];
+                            medianGetter[0] = medianGetter[1];
+
+                            medianGetter[4] = valuesForMAD[feature][v];
+                        }
+                    }
+                    else if (m>0) {
+                        medianGetter[m-1] = valuesForMAD[feature][v];
+                        break;
+                    }
+                }
+            }
+
+            // Adjust values
+            for (int v = 0; v < 9; v++) {
+                valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[2]);
+            }
+
+            // Reset median getter
+            medianGetter[0] = 0.0f;
+            medianGetter[1] = 0.0f;
+            medianGetter[2] = 0.0f;
+            medianGetter[3] = 0.0f;
+            medianGetter[4] = 0.0f;
+
+            // Get median again
+            for (int v = 0; v < 9; v++) {
+                for (int m = 0; m < 5; m++) {
+                    if (valuesForMAD[feature][v] > medianGetter[m]) {
+                        if (m == 4) {
+                            // Shift all values down
+                            medianGetter[3] = medianGetter[4];
+                            medianGetter[2] = medianGetter[3];
+                            medianGetter[1] = medianGetter[2];
+                            medianGetter[0] = medianGetter[1];
+                            medianGetter[4] = valuesForMAD[feature][v];
+                        }
+                    }
+                    else if (m>0) {
+                        for (int mm=m-1;mm>=0;mm--)
+                            medianGetter[mm] = medianGetter[mm+1];
+                        medianGetter[m] = valuesForMAD[feature][v];
+                        break;
+                    }
+                }
+            }
+            // Final MAD value
+            out.MAD[feature] = medianGetter[2];
+        }
+        // L
+        out.L = 1.0f/constants.samples;
+
+    }
+    
+    // Variances
+    {
+        int node, weight, numNodes;
+
+        // Layer 1 - 2
+        for (node=0; node<10; node++) {
+            out.l2[node] = 0.0f;
+
+            // Go through all secondary features
+            {
+                out.l2[node] += out.meansSingle[0]   * constants.onetwo[36*node + 0]; 
+                out.l2[node] += out.meansSingle[1]   * constants.onetwo[36*node + 1]; 
+                out.l2[node] += out.meansSingle[2]   * constants.onetwo[36*node + 2]; 
+                out.l2[node] += out.meansSingle[3]   * constants.onetwo[36*node + 3]; 
+                out.l2[node] += out.meansSingle[4]   * constants.onetwo[36*node + 4]; 
+                out.l2[node] += out.sdSingle[0]      * constants.onetwo[36*node + 5];
+                out.l2[node] += out.sdSingle[1]      * constants.onetwo[36*node + 6];
+                out.l2[node] += out.sdSingle[2]      * constants.onetwo[36*node + 7];
+                out.l2[node] += out.sdSingle[3]      * constants.onetwo[36*node + 8];
+                out.l2[node] += out.sdSingle[4]      * constants.onetwo[36*node + 9];
+                out.l2[node] += out.meansBlock[0]    * constants.onetwo[36*node + 10];
+                out.l2[node] += out.meansBlock[1]    * constants.onetwo[36*node + 11];
+                out.l2[node] += out.meansBlock[2]    * constants.onetwo[36*node + 12];
+                out.l2[node] += out.meansBlock[3]    * constants.onetwo[36*node + 13];
+                out.l2[node] += out.meansBlock[4]    * constants.onetwo[36*node + 14];
+                out.l2[node] += out.sdBlock[0]       * constants.onetwo[36*node + 15];
+                out.l2[node] += out.sdBlock[1]       * constants.onetwo[36*node + 16];
+                out.l2[node] += out.sdBlock[2]       * constants.onetwo[36*node + 17];
+                out.l2[node] += out.sdBlock[3]       * constants.onetwo[36*node + 18];
+                out.l2[node] += out.sdBlock[4]       * constants.onetwo[36*node + 19];
+                out.l2[node] += out.gradients[0]     * constants.onetwo[36*node + 20];
+                out.l2[node] += out.gradients[1]     * constants.onetwo[36*node + 21];
+                out.l2[node] += out.gradients[2]     * constants.onetwo[36*node + 22];
+                out.l2[node] += out.gradients[3]     * constants.onetwo[36*node + 23];
+                out.l2[node] += out.gradients[4]     * constants.onetwo[36*node + 24];
+                out.l2[node] += out.meanDeviation[0] * constants.onetwo[36*node + 25];
+                out.l2[node] += out.meanDeviation[1] * constants.onetwo[36*node + 26];
+                out.l2[node] += out.meanDeviation[2] * constants.onetwo[36*node + 27];
+                out.l2[node] += out.meanDeviation[3] * constants.onetwo[36*node + 28];
+                out.l2[node] += out.meanDeviation[4] * constants.onetwo[36*node + 29];
+                out.l2[node] += out.MAD[0]           * constants.onetwo[36*node + 30];
+                out.l2[node] += out.MAD[1]           * constants.onetwo[36*node + 31];
+                out.l2[node] += out.MAD[2]           * constants.onetwo[36*node + 32];
+                out.l2[node] += out.MAD[3]           * constants.onetwo[36*node + 33];
+                out.l2[node] += out.MAD[4]           * constants.onetwo[36*node + 34];
+                out.l2[node] += out.L                * constants.onetwo[36*node + 35];
+            }
+            
+            out.l2[node] = 1.0f/(1.0f + exp(-out.l2[node]));
+        }
+
+        // Layer 2 - 3
+        for (node=0; node<10; node++) {
+            out.l3[node] = 0.0f;
+            for (weight=0; weight<10; weight++)
+                out.l3[node] += out.l2[weight]*constants.twothree[10*node + weight];
+            out.l3[node] = 1.0f/(1.0f + exp(-out.l3[node]));
+        }
+
+        // Layer 3 - 4
+        for (node=0; node<7; node++) {
+            out.variances[node] = 0.0f;
+            for (weight=0; weight<10; weight++)
+                out.variances[node] += out.l3[weight]*constants.threefour[10*node + weight];
+            out.variances[node] = log(1.0f + exp(out.variances[node]));
+        }
+
+    }
+
+    return out;    
+}
+void DenoiserNN::SkePUForwardProp() {
+
+    auto in = skepu::Matrix<ForPropIn>(yRes, xRes);
+    auto out = skepu::Matrix<ForPropOut>(yRes, xRes);
+    SkePUFPConstants sConstants;
+
+    // Set Constants
+    int w;
+    sConstants.samples = sampleCount;
+    for (w=0;w<360;w++)
+        sConstants.onetwo[w] = onetwo[w];
+    for (w=0;w<100;w++)
+        sConstants.twothree[w] = twothree[w];
+    for (w=0;w<70;w++)
+        sConstants.threefour[w] = threefour[w];
+
+    // Set Inputs
+    for (int ind = 0; ind < xRes*yRes; ind++) {
+
+        in[ind].normal      = (normal[ind].x     + normal[ind].y   + normal[ind].z)   / (3.0f * sampleCount);
+        in[ind].alb1        = (albedo1[ind].x    + albedo1[ind].y  + albedo1[ind].z)  / (3.0f * sampleCount);
+        in[ind].alb2        = (albedo2[ind].x    + albedo2[ind].y  + albedo2[ind].z)  / (3.0f * sampleCount);
+        in[ind].worldPos    = (worldPos[ind].x   + worldPos[ind].y + worldPos[ind].z) / (3.0f * sampleCount);
+        in[ind].directLight = directLight[ind].x / sampleCount;
+
+        in[ind].stdDev[0] = denoisingInf[ind].stdDev[0];
+        in[ind].stdDev[1] = denoisingInf[ind].stdDev[1];
+        in[ind].stdDev[2] = denoisingInf[ind].stdDev[2];
+        in[ind].stdDev[3] = denoisingInf[ind].stdDev[3];
+        in[ind].stdDev[4] = denoisingInf[ind].stdDev[4];
+        in[ind].stdDev[5] = denoisingInf[ind].stdDev[5];
+    }
+
+    auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(denoisingSkePUBackend)};
+	spec.activateBackend();
+    auto convol = skepu::MapOverlap(SkePUFPFunc);
+	convol.setBackend(spec);
+    convol.setOverlap(3);
+    convol.setEdgeMode(skepu::Edge::Duplicate);
+
+    convol(out, in, sConstants);
+    out.updateHost();
+
+    int ind, v;
+    ForPropOut ret;
+    DenoisingInf* info;
+    SecondaryFeatures* s;
+    for (int j = 0; j < yRes; j++) {
+        for (int i = 0; i < xRes; i++) {
+            
+            ind = j*xRes + i;
+
+            ret = out(j, i);
+            info = &denoisingInf[ind];
+            s = &sFeatures[ind];
+
+            for (v = 0; v < 10; v++) {
+                layerTwoValues[10*ind + v] = ret.l2[v];
+                layerThreeValues[10*ind + v] = ret.l3[v];
+            }
+            for (v = 0; v < 6;  v++)
+                info->variances[v] = ret.variances[v];
+            for (v = 0; v < 5; v++) {
+                s->meansSingle[v]   = ret.meansSingle[v];
+                s->sdSingle[v]      = ret.sdSingle[v];
+                s->meansBlock[v]    = ret.meansBlock[v];
+                s->sdBlock[v]       = ret.sdBlock[v];
+                s->gradients[v]     = ret.gradients[v];
+                s->meanDeviation[v] = ret.meanDeviation[v];
+                s->MAD[v]           = ret.MAD[v];
+            }
+            s->L = ret.L;
+
+        }
+    }
+    
 }
 
 // Back Prop Functions
@@ -700,19 +1071,19 @@ void DenoiserNN::CPUBackProp() {
                 for (w=0;w<360;w++){
                     // Derivative Three: filter/weight = secondary feature input at weight index
                     paramOverWeight = sFeatures[pixel](w % 36);
-                    onetwo[w] -= learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
+                    onetwo[w] += learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
                 }
                 // Weights Two
                 for (w=0;w<100;w++){
                     // Derivative Three: filter/weight = second layer value at weight index
                     paramOverWeight = layerTwoValues[10*pixel + w % 10];
-                    twothree[w] -= learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
+                    twothree[w] += learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
                 }
                 // Weights Three
                 for (w=0;w<70;w++){
                     // Derivative Three: filter/weight = third layer value at weight index
                     paramOverWeight = layerThreeValues[10*pixel + w % 10];
-                    threefour[w] -= learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
+                    threefour[w] += learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
                 }
             }
         }
@@ -815,24 +1186,32 @@ void DenoiserNN::OMPBackProp() {
                 for (w=0;w<360;w++){
                     // Derivative Three: filter/weight = secondary feature input at weight index
                     paramOverWeight = sFeatures[pixel](w % 36);
-                    onetwo[w] -= learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
+                    onetwo[w] += learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
                 }
                 // Weights Two
                 for (w=0;w<100;w++){
                     // Derivative Three: filter/weight = second layer value at weight index
                     paramOverWeight = layerTwoValues[10*pixel + w % 10];
-                    twothree[w] -= learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
+                    twothree[w] += learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
                 }
                 // Weights Three
                 for (w=0;w<70;w++){
                     // Derivative Three: filter/weight = third layer value at weight index
                     paramOverWeight = layerThreeValues[10*pixel + w % 10];
-                    threefour[w] -= learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
+                    threefour[w] += learningRate*errorOverColour.dot(colourOverParam)*paramOverWeight;
                 }
             }
         }
     }
 }
+void DenoiserNN::SkePUBackProp() {
+
+}
+
+
+
+
+
 
 void DenoiserNN::GenRelMSE() {
 

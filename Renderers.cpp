@@ -5,6 +5,27 @@
         double camPos[3] = {constants.camPos[0], constants.camPos[1], constants.camPos[2]};
         double rayPos[3] = {camPos[0], camPos[1], camPos[2]};
 
+        // Random seeds
+        uint64_t randSeeds[2];
+        randSeeds[0] = seeds.s1; 
+        randSeeds[1] = seeds.s2; 
+
+        // Rand Samp
+        float rSamps[2] = {0.0f, 0.0f};
+        if (constants.randSamp>0.01f) {
+            // Rand vals
+            for (int n = 0; n < 2; n++) {
+                uint64_t s0 = randSeeds[0];
+                uint64_t s1 = randSeeds[1];
+                uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
+                double one_two = ((uint64_t)1 << 63) * (double)2.0;
+                rSamps[n] =  constants.randSamp * xorshiro / one_two;
+                s1 ^= s0;
+                randSeeds[0] = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
+                randSeeds[1] = (s1 << 28) | (s1 >> 36);
+            }
+        }
+
         // Pixel Coord
         double camForward[3] = {constants.camForward[0], constants.camForward[1], constants.camForward[2]};
         double camRight[3] = {constants.camRight[0], constants.camRight[1], constants.camRight[2]};
@@ -12,10 +33,14 @@
         double pY = -constants.maxAngleV + 2*constants.maxAngleV*((double)ind.row/(double)constants.RESV);
         double pX = -constants.maxAngleH + 2*constants.maxAngleH*((double)ind.col/(double)constants.RESH);
 
+        int pSigns[2];
+        pSigns[0] = pX>0 ? 1 : -1;
+        pSigns[1] = pY>0 ? 1 : -1;
+
         double pix[3] = {0,0,0};
-        pix[0] = camPos[0] + constants.camForward[0]*constants.focalLength + constants.camRight[0]*pX + constants.camUp[0]*pY;
-        pix[1] = camPos[1] + constants.camForward[1]*constants.focalLength + constants.camRight[1]*pX + constants.camUp[1]*pY;
-        pix[2] = camPos[2] + constants.camForward[2]*constants.focalLength + constants.camRight[2]*pX + constants.camUp[2]*pY;
+        pix[0] = camPos[0] + constants.camForward[0]*constants.focalLength + constants.camRight[0]*(pX+pSigns[0]*rSamps[0]) + constants.camUp[0]*(pY+pSigns[1]*rSamps[1]);
+        pix[1] = camPos[1] + constants.camForward[1]*constants.focalLength + constants.camRight[1]*(pX+pSigns[0]*rSamps[0]) + constants.camUp[1]*(pY+pSigns[1]*rSamps[1]);
+        pix[2] = camPos[2] + constants.camForward[2]*constants.focalLength + constants.camRight[2]*(pX+pSigns[0]*rSamps[0]) + constants.camUp[2]*(pY+pSigns[1]*rSamps[1]);
 
         double rayDir[3] = {pix[0]-camPos[0], pix[1]-camPos[1], pix[2]-camPos[2]};
         double n1 = sqrt(rayDir[0]*rayDir[0] + rayDir[1]*rayDir[1] + rayDir[2]*rayDir[2]);
@@ -23,18 +48,16 @@
         rayDir[1]/=n1;
         rayDir[2]/=n1;   
 
-        // Random seeds
-        uint64_t randSeeds[2];
-        randSeeds[0] = seeds.s1; 
-        randSeeds[1] = seeds.s2; 
-
-
         // Store ray collisions and reverse through them (last num is shape index)
-        double rayPositions[5][4] = {{0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}};
-        double normals[5][3] = {{0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}};
-        double defaultPdf = 1.0 / M_PI;
-        double pdfVals[5] = {defaultPdf, defaultPdf, defaultPdf, defaultPdf, defaultPdf};
-        int shadowRays[5] = {0,0,0,0,0};
+        double rayPositions[12][4];
+        double normals[12][3];
+        double pdfVals[12];
+        // Shadow Rays: counts succesful shadow rays i.e. direct lighting, done for each bounce to provide more info
+        int shadowRays[12];
+        for (int v=0; v<12; v++){
+            pdfVals[v] = 1.0 / M_PI;
+            shadowRays[v] = 0.0f;
+        }
 
         /*
             - loop through shapes
@@ -53,9 +76,10 @@
         */
 
         int numShapeHit = 0;
+        int numRays = 0;
         double dir[3] = {rayDir[0], rayDir[1], rayDir[2]};
-        int BOUNCES = 5;
-        for (int pos = 0; pos < BOUNCES; pos++) {
+        for (int pos = 0; pos < constants.maxDepth; pos++) {
+            numRays++;
             int shapeHit;
             double prevPos[3];
             if (pos > 0) {
@@ -277,6 +301,7 @@
                         */
                         if (constants.shapes[shapeHit][6] == 3) {
                             // Dielectric Material
+                            shadowRays[pos] = 1;
                             double blur = constants.shapes[shapeHit][14];
                             double RI = 1.0 / constants.shapes[shapeHit][15];
                             double dirIn[3] = {dir[0], dir[1], dir[2]};
@@ -331,6 +356,7 @@
                         }
                         else if (constants.shapes[shapeHit][6] == 2) {
                             // Metal material
+                            shadowRays[pos] = 1;
 
                             double dirIn[3] = {dir[0], dir[1], dir[2]};
                             double blur = constants.shapes[shapeHit][14];
@@ -357,19 +383,27 @@
                             dir[1] = randDir[1];
                             dir[2] = randDir[2];
 
-                            // Get importance shape
-                            bool mixPdf = constants.numImportantShapes > 0;
-                            int impInd;
-                            int impShape;
-                            if (mixPdf) { 
-                                impInd = rands[2] * constants.numImportantShapes * 0.99999f;
-                                impShape = constants.importantShapes[impInd];
-                                if (impShape==shapeHit) {
-                                    mixPdf = constants.numImportantShapes > 1;
-                                    impInd = (impInd+1) % constants.numImportantShapes;
+                            // Check Light Mat
+                            bool mixPdf;
+                            int impInd, impShape;
+                            if (constants.shapes[shapeHit][6] == 1) {
+                                shadowRays[pos] = 1;
+                                mixPdf = false;
+                            } else {
+                                // Get importance shape
+                                mixPdf = constants.numImportantShapes > 0;
+
+                                if (mixPdf) { 
+                                    impInd = rands[2] * constants.numImportantShapes * 0.99999f;
                                     impShape = constants.importantShapes[impInd];
-                                } 
+                                    if (impShape==shapeHit) {
+                                        mixPdf = constants.numImportantShapes > 1;
+                                        impInd = (impInd+1) % constants.numImportantShapes;
+                                        impShape = constants.importantShapes[impInd];
+                                    } 
+                                }
                             }
+
                             // Calculate PDF val
                             if (mixPdf) {
                                 // 0
@@ -430,9 +464,11 @@
                                     // Need to send shadow ray to see if point is in path of direct light
                                     double t = INFINITY;
                                     bool shadowRayHit = false;
+
                                     for (int ind = 0; ind < constants.numShapes; ind++) {
                                         if (ind == impShape)
                                             continue;
+                                        numRays++;
                                         int shapeType = (int)constants.shapes[ind][7];
                                         double tempT = INFINITY;
                                         // ----- intersect shapes -----
@@ -527,7 +563,10 @@
                                                     dir[1]*normals[pos][1] + 
                                                     dir[2]*normals[pos][2];
                                     cosine = cosine < 0.0001f ? 0.0001f : cosine;
-                                    p1 = 1 / (cosine * areaSum);
+
+                                    // AABB needs magic number for pdf calc, TODO: LOOK INTO, was too bright before
+                                    p1 = 1 / (cosine * areaSum);// * .01f);
+
                                 } else if (constants.shapes[impShape][7] == 1) {
                                     // Sphere pdf val
                                     double diff[3] = {constants.shapes[impShape][0]-posHit[0], 
@@ -538,7 +577,9 @@
                                     // NaN check
                                     cos_theta_max = (cos_theta_max != cos_theta_max) ? 0.9999f : cos_theta_max;
                                     auto solid_angle = M_PI * (1.0f - cos_theta_max) *2.0f;
-                                    p1 = 1 / solid_angle;
+
+                                    // Sphere needs magic number for pdf calc, TODO: LOOK INTO, was too dark before
+                                    p1 = 1 / (solid_angle);// * 4.0f);
                                 }
 
                                 pdfVals[pos] = p0 + p1;
@@ -568,8 +609,8 @@
             int shapeHit = (int)rayPositions[pos][3];
 
             double albedo[3] = {constants.shapes[shapeHit][3], 
-                            constants.shapes[shapeHit][4], 
-                            constants.shapes[shapeHit][5]};
+                                constants.shapes[shapeHit][4], 
+                                constants.shapes[shapeHit][5]};
             int matType = (int)constants.shapes[shapeHit][6];	
             int shapeType = (int)constants.shapes[shapeHit][7];
         
@@ -624,12 +665,14 @@
             ret.albedo2[0] = constants.shapes[(int)rayPositions[1][3]][3];
             ret.albedo2[1] = constants.shapes[(int)rayPositions[1][3]][4];
             ret.albedo2[2] = constants.shapes[(int)rayPositions[1][3]][5];
-            ret.directLight = (shadowRays[0] + shadowRays[1] + shadowRays[2] + shadowRays[3] + shadowRays[4]) / 5.0f;
+            ret.directLight = 0.0f;
+            for (int c = 0; c<constants.maxDepth; c++)
+                ret.directLight += (float)shadowRays[c] / (float)constants.maxDepth;
             ret.worldPos[0] = rayPositions[0][0];
             ret.worldPos[1] = rayPositions[0][1];
             ret.worldPos[2] = rayPositions[0][2];
         }
-        ret.raysSent = numShapeHit;
+        ret.raysSent = numRays;
         return ret;
     }
     
@@ -780,7 +823,6 @@
     void Renderers::OpenGLRender() {
 
     }
-
     void Renderers::SkePURender() {
 
         // Configure SkePU
@@ -788,12 +830,12 @@
         spec.activateBackend();
         auto renderFunc = skepu::Map<1>(RenderFunc);
         renderFunc.setBackend(spec);
-        auto outputContainer = skepu::Matrix<ReturnStruct>(constants.RESV, constants.RESH);
-        auto seeds = skepu::Matrix<RandomSeeds>(constants.RESV, constants.RESH);
+        auto outputContainer = skepu::Matrix<ReturnStruct>(yRes, xRes);
+        auto seeds = skepu::Matrix<RandomSeeds>(yRes, xRes);
 
 		// Generate random seeds for each pixel
-		for (int j = 0; j < constants.RESV; j++) {
-			for (int i = 0; i < constants.RESH; i++) {
+		for (int j = 0; j < yRes; j++) {
+			for (int i = 0; i < xRes; i++) {
 				uint64_t s0 = constants.GloRandS[0];
 				uint64_t s1 = constants.GloRandS[1];
 				s1 ^= s0;
@@ -863,24 +905,14 @@
 			}
 		}        
     }
-
+    
     void Renderers::UpdateConstants() {
         // Update Constants
 
         constants = Constants();
 
-        vec3 camPos = cam.pos;
-        vec3 camForward = cam.forward;
-        vec3 camRight = cam.right;
-        vec3 camUp = cam.up;
+        UpdateCam();
 
-        constants.camPos[0] = camPos.x; constants.camPos[1] = camPos.y; constants.camPos[2] = camPos.z;
-        constants.camForward[0] = camForward.x; constants.camForward[1] = camForward.y; constants.camForward[2] = camForward.z;
-        constants.camRight[0] = camRight.x; constants.camRight[1] = camRight.y; constants.camRight[2] = camRight.z;
-        constants.camUp[0] = camUp.x; constants.camUp[1] = camUp.y; constants.camUp[2] = camUp.z;
-
-        constants.RESH = xRes;
-        constants.RESV = yRes;
         constants.maxAngleH = tan(M_PI * cam.hfov/360.0f);
         constants.maxAngleV = tan(M_PI * cam.vfov/360.0f);
         constants.focalLength = cam.focalLen;
@@ -891,6 +923,9 @@
         constants.backgroundColour[0] = 0.0f;
         constants.backgroundColour[1] = 0.0f;
         constants.backgroundColour[2] = 0.0f;
+
+        constants.maxDepth = maxDepth;
+        constants.randSamp = randSamp;
 
         uint numImportantShapes = 0;
         for (int i = 0; i < std::min(5, (int)scene.importantList.size()); i++) {
@@ -915,7 +950,20 @@
         }
         constants.numShapes = numShapesAdded;
     }
+    void Renderers::UpdateCam() {
+        vec3 camPos = cam.pos;
+        vec3 camForward = cam.forward;
+        vec3 camRight = cam.right;
+        vec3 camUp = cam.up;
 
+        constants.camPos[0] = camPos.x; constants.camPos[1] = camPos.y; constants.camPos[2] = camPos.z;
+        constants.camForward[0] = camForward.x; constants.camForward[1] = camForward.y; constants.camForward[2] = camForward.z;
+        constants.camRight[0] = camRight.x; constants.camRight[1] = camRight.y; constants.camRight[2] = camRight.z;
+        constants.camUp[0] = camUp.x; constants.camUp[1] = camUp.y; constants.camUp[2] = camUp.z;
+
+        constants.RESH = xRes;
+        constants.RESV = yRes;
+    }
 
 
 

@@ -153,7 +153,7 @@ public:
     void OMPForwardProp();
     void CUDAForwardProp(){}
     void OpenGLForwardProp(){}
-    void SkePUForwardProp(){}
+    void SkePUForwardProp();
 
     // Back Prop
     vec3 CPUFilterDerivative(int j, int i, int var);
@@ -162,7 +162,7 @@ public:
     void OMPBackProp();
     void CUDABackProp(){}
     void OpenGLBackProp(){}
-    void SkePUBackProp(){}
+    void SkePUBackProp();
 
     void TrainNN();
 
@@ -199,7 +199,7 @@ public:
         float* layerTwoValues; // 10 vals per pixel
         float twothree[100];
         float* layerThreeValues; // 10 vals per pixel
-        float threefour[70];
+        float threefour[80];
 
         float learningRate = 0.0001f;
         int samplesWhenTraining = 4;

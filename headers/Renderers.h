@@ -21,8 +21,8 @@ typedef std::chrono::duration<double, std::milli > milli_second_;
 
 struct Constants {
     float camPos[3], camForward[3], camRight[3], camUp[3];
-	float maxAngle;
-	int numShapes;
+	float maxAngle, randSamp;
+	int numShapes, maxDepth;
 	int RESV, RESH;
 	float maxAngleV, maxAngleH, focalLength;
 
@@ -97,6 +97,7 @@ public:
     void SkePURender();
 
     void UpdateConstants();
+    void UpdateCam();
 
     Constants constants;
 

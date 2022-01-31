@@ -3,7 +3,7 @@
 int xRes, yRes, xScreen, yScreen, maxDepth, currentRenderer, rayCount, sampleCount;
 bool denoising, moving, quit, rendering, refresh;
 unsigned int mainTexture; 
-float exposure, g;
+float exposure, g, randSamp;
 int displayMetric;
 std::string skepuBackend;
 double renderTime, denoiseTime, epochTime, totalTime;
@@ -64,6 +64,9 @@ PT::PT() :
     objEdit = 0;
     displayMetric = 0;
     denoisingN = 1;
+    maxDepth = 4;
+    lRateInt = 9;
+    randSamp = 0.017f;
 
     scene = Scene();
     scene.InitScene();
@@ -83,8 +86,7 @@ void PT::RenderLoop() {
         ImGui();
 
         if (refresh) {
-            SwitchRenderModes();
-            renderer.UpdateConstants();
+            RefreshScreen();
         }
 
         if (rendering) 
@@ -177,24 +179,27 @@ void PT::InitScreens() {
     denoisingInf   = new DenoisingInf[xRes*yRes];
 }
 
-void PT::SwitchRenderModes(){
+void PT::RefreshScreen(){
     if (moving) {
         xRes = 1920*0.25f;
         yRes = 1080*0.25f;
         moving = false;
         refresh = true;
+        renderer.UpdateCam();
     } else {
         xRes = 1920*resPerc;
         yRes = 1080*resPerc;
+        xScreen = 1920*screenPerc;
+        yScreen = 1080*screenPerc;
+        renderer.UpdateConstants();
         refresh = false;
     }
-    xScreen = 1920*screenPerc;
-    yScreen = 1080*screenPerc;
+
     sampleCount = 0;
     totalTime = 0;
 
     // Reset Screens
-    //DeleteScreens();
+    DeleteScreens();
     InitScreens();
 }
 
@@ -213,7 +218,7 @@ void PT::ProcessInput() {
 		}
 	}
 
-	if (!training && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape)))
+	if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape)))
 		quit = true;
 
     if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Space)))
@@ -277,11 +282,11 @@ void PT::ImGui() {
         ImGui::Text("Screen Size: (%d x %d)", xScreen, yScreen);
 
         // Post Process
-        ImGui::SliderFloat("Exposure", &exposure, 1.0f, 10.0f);
+        ImGui::SliderFloat("Exposure", &exposure, 0.1f, 10.0f);
         ImGui::SliderFloat("Gamma", &g, 1.0f, 10.0f);
 
-
-        ImGui::Text("Max Depth: %d", maxDepth);
+        refresh |= ImGui::SliderFloat("Random Sampling Strength", &randSamp, 0.0f, 1.0f);
+        refresh |= ImGui::SliderInt("Max Depth", &maxDepth, 1, 12);
         refresh |= ImGui::SliderInt("Rendering Mode", &currentRenderer, 0, 6);
         switch(currentRenderer) {
             case 0:
@@ -339,6 +344,7 @@ void PT::ImGui() {
         if (ImGui::Button("Remove Shape")) {
             scene.RemoveShape(objEdit);
             refresh = true;
+            objEdit = 0;
         }
         if (scene.objList[objEdit]->inImportantList) {
             if (ImGui::Button("Remove from Imp List")) {
@@ -421,7 +427,8 @@ void PT::ImGui() {
                 }
                              
 
-                ImGui::InputFloat("Learning Rate", &denoiserNN.learningRate);
+                if (ImGui::InputInt("Learning Rate (Inverse)", &lRateInt, 0, 16))
+                    denoiserNN.learningRate = 1.0f / pow(10, lRateInt);
                 ImGui::InputInt("Sample for Training", &denoiserNN.samplesWhenTraining);
 
                 if (!training) {
@@ -431,7 +438,7 @@ void PT::ImGui() {
                     ImGui::Text("Epoch: %d", trainingEpoch);
                     ImGui::Text("Epoch Time: %.3f", epochTime);
                     ImGui::Text("RelMSE: %.3f", denoiserNN.relMSE);
-                    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape)) || ImGui::Button("Stop Training"))
+                    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Tab)) || ImGui::Button("Stop Training"))
                         denoiserNN.EndTraining();   
                 }
 

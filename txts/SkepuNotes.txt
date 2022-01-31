@@ -9,3 +9,13 @@ adding gpu information (120, 32)
     - creating stdDev squared thats smaller than actual difference between nearby values
     - This leads to large value causing a weight value of 0, ruining the whole sum
     - causes a weight value of 1 only at the origin pixel, leading to an unchanged filtered image
+    - FIX: have removed worlPosStdDev from weight calc, now variance val should change accordingly, REMEMBER THIS
+
+4. Going to try add a new variance value, i.e. ML calculated value. This will be a brightness setting for the pixel, as its quite difficult to directly brighten the pixels i feel, ill see how it goes
+    - FAILURE: seems to only change brightness of screen, very weird
+
+5. Problem with denoising spheres, filter isnt affecting spheres at all, normal related ? 
+    - Not to do with spheres, its the area in front of the camera, not being denoised at all 
+    - not to do with world pos stan dev
+    - its to do with the small vals added to the std dev and variance
+    - actually, might be to do with std dev with random sampling, as its more effective in the centre

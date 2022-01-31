@@ -42,21 +42,21 @@
         // Center Pixel Specific
 
             // Standard Deviations
-            float col1StdDev =        r(0,0).stdDevs[0] + 0.001f;
-            float normalStdDev =      r(0,0).stdDevs[1] + 0.001f;
-            float albedo1StdDev =     r(0,0).stdDevs[2] + 0.001f;
-            float albedo2StdDev =     r(0,0).stdDevs[3] + 0.001f;
-            float worldPosStdDev =    r(0,0).stdDevs[4] + 0.001f;
-            float directLightStdDev = r(0,0).stdDevs[5] + 0.001f;
+            float col1StdDev =        r(0,0).stdDevs[0];
+            float normalStdDev =      r(0,0).stdDevs[1];
+            float albedo1StdDev =     r(0,0).stdDevs[2];
+            float albedo2StdDev =     r(0,0).stdDevs[3];
+            float worldPosStdDev =    r(0,0).stdDevs[4];
+            float directLightStdDev = r(0,0).stdDevs[5];
 
             // Variances
-            float indexVariance =       r(0,0).variances[0] + 0.001f;
-            float colVariance =         r(0,0).variances[1] + 0.001f;
-            float normalVariance =      r(0,0).variances[2] + 0.001f;
-            float albedo1Variance =     r(0,0).variances[3] + 0.001f;
-            float albedo2Variance =     r(0,0).variances[4] + 0.001f;
-            float worldPosVariance =    r(0,0).variances[5] + 0.001f;
-            float directLightVariance = r(0,0).variances[6] + 0.001f;
+            float indexVariance =       r(0,0).variances[0];
+            float colVariance =         r(0,0).variances[1];
+            float normalVariance =      r(0,0).variances[2];
+            float albedo1Variance =     r(0,0).variances[3];
+            float albedo2Variance =     r(0,0).variances[4];
+            float worldPosVariance =    r(0,0).variances[5];
+            float directLightVariance = r(0,0).variances[6];
 
 
             float pCol[3] =      {r(0,0).col[0],      r(0,0).col[1],      r(0,0).col[2]};
@@ -106,22 +106,22 @@
                 indexVal = (j*j + i*i)/(2.0f * indexVariance);  
                 indexVal = exp(-indexVal);
                 // COLOUR
-                colVal = (pow(ijCol[0]-pCol[0],2) + pow(ijCol[1]-pCol[1],2) + pow(ijCol[2]-pCol[2],2))/((col1StdDev + col2StdDev) * 2.0f * colVariance); 
+                colVal = (pow(ijCol[0]-pCol[0],2) + pow(ijCol[1]-pCol[1],2) + pow(ijCol[2]-pCol[2],2))/((col1StdDev + col2StdDev) * 2.0f * colVariance + 0.000001f); 
                 colVal = exp(-colVal);
                 // NORMAL
-                normalVal = (pow(ijNormal[0]-pNormal[0],2) + pow(ijNormal[1]-pNormal[1],2) + pow(ijNormal[2]-pNormal[2],2))/(normalStdDev * 2.0f * normalVariance); 
+                normalVal = (pow(ijNormal[0]-pNormal[0],2) + pow(ijNormal[1]-pNormal[1],2) + pow(ijNormal[2]-pNormal[2],2))/(normalStdDev * 2.0f * normalVariance + 0.000001f); 
                 normalVal = exp(-normalVal);
                 // ALBEDO1
-                albedo1Val = (pow(ijAlbedo1[0]-pAlbedo1[0],2) + pow(ijAlbedo1[1]-pAlbedo1[1],2) + pow(ijAlbedo1[2]-pAlbedo1[2],2))/(albedo1StdDev * 2.0f * albedo1Variance); 
+                albedo1Val = (pow(ijAlbedo1[0]-pAlbedo1[0],2) + pow(ijAlbedo1[1]-pAlbedo1[1],2) + pow(ijAlbedo1[2]-pAlbedo1[2],2))/(albedo1StdDev * 2.0f * albedo1Variance + 0.000001f); 
                 albedo1Val = exp(-albedo1Val);
                 // ALBEDO2
-                albedo2Val = (pow(ijAlbedo2[0]-pAlbedo2[0],2) + pow(ijAlbedo2[1]-pAlbedo2[1],2) + pow(ijAlbedo2[2]-pAlbedo2[2],2))/(albedo2StdDev * 2.0f * albedo2Variance); 
+                albedo2Val = (pow(ijAlbedo2[0]-pAlbedo2[0],2) + pow(ijAlbedo2[1]-pAlbedo2[1],2) + pow(ijAlbedo2[2]-pAlbedo2[2],2))/(albedo2StdDev * 2.0f * albedo2Variance + 0.000001f); 
                 albedo2Val = exp(-albedo2Val);
                 // WORLD POS
-                worldPosVal = (pow(ijWorldPos[0]-pWorldPos[0],2) + pow(ijWorldPos[1]-pWorldPos[1],2) + pow(ijWorldPos[2]-pWorldPos[2],2))/(worldPosStdDev * 2.0f * worldPosVariance); 
+                worldPosVal = (pow(ijWorldPos[0]-pWorldPos[0],2) + pow(ijWorldPos[1]-pWorldPos[1],2) + pow(ijWorldPos[2]-pWorldPos[2],2))/( 2.0f * worldPosStdDev *worldPosVariance + 0.000001f); 
                 worldPosVal = exp(-worldPosVal);
                 //DIRECT LIGHT
-                directLightVal = pow(ijDirectLight-pDirectLight,2)/(directLightStdDev * 2.0f * directLightVariance); 
+                directLightVal = pow(ijDirectLight-pDirectLight,2)/(directLightStdDev * 2.0f * directLightVariance + 0.000001f); 
                 directLightVal = exp(-directLightVal);
 
                 weight = indexVal*colVal*normalVal*albedo1Val*albedo2Val*worldPosVal*directLightVal; 
@@ -195,7 +195,7 @@
                 mat[ind].variances[v] = denoisingInf[ind].variances[v];
         }
 
-        auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(skepuBackend)};
+        auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(denoisingSkePUBackend)};
 	    spec.activateBackend();
         skepu::Matrix<FilterVals> result(yRes, xRes);
         auto convol = skepu::MapOverlap(SkePUFilter);
@@ -275,21 +275,21 @@
                 pDirectLight =  directLight[index].x / sampleCount;
 
                 // Standard Deviations
-			    col1StdDev        = denoisingInf[index].stdDev[0] + 0.001f;
-			    normalStdDev      = denoisingInf[index].stdDev[1] + 0.001f;
-			    albedo1StdDev     = denoisingInf[index].stdDev[2] + 0.001f;
-			    albedo2StdDev     = denoisingInf[index].stdDev[3] + 0.001f;
-			    worldPosStdDev    = denoisingInf[index].stdDev[4] + 0.001f;
-                directLightStdDev = denoisingInf[index].stdDev[5] + 0.001f;
+			    col1StdDev        = denoisingInf[index].stdDev[0];
+			    normalStdDev      = denoisingInf[index].stdDev[1];
+			    albedo1StdDev     = denoisingInf[index].stdDev[2];
+			    albedo2StdDev     = denoisingInf[index].stdDev[3];
+			    worldPosStdDev    = denoisingInf[index].stdDev[4];
+                directLightStdDev = denoisingInf[index].stdDev[5];
 
                 // Variances
-                indexVariance       = denoisingInf[index].variances[0] + 0.001f;
-                colVariance         = denoisingInf[index].variances[1] + 0.001f;
-                normalVariance      = denoisingInf[index].variances[2] + 0.001f;
-                albedo1Variance     = denoisingInf[index].variances[3] + 0.001f;
-                albedo2Variance     = denoisingInf[index].variances[4] + 0.001f;
-                worldPosVariance    = denoisingInf[index].variances[5] + 0.001f;
-                directLightVariance = denoisingInf[index].variances[6] + 0.001f;
+                indexVariance       = denoisingInf[index].variances[0];
+                colVariance         = denoisingInf[index].variances[1];
+                normalVariance      = denoisingInf[index].variances[2];
+                albedo1Variance     = denoisingInf[index].variances[3];
+                albedo2Variance     = denoisingInf[index].variances[4];
+                worldPosVariance    = denoisingInf[index].variances[5];
+                directLightVariance = denoisingInf[index].variances[6];
 
                 for (j = -N; j <= N; j++) {
                     jFixed = jMain + j < 0 ? 0 : (jMain + j >= yRes ? yRes-1 : jMain + j);
@@ -305,34 +305,34 @@
                         ijWorldPos    = worldPos[ijIndex]      / sampleCount;
                         ijDirectLight = directLight[ijIndex].x / sampleCount;
 
-                        col2StdDev = denoisingInf[ijIndex].stdDev[0] + 0.000001f;
+                        col2StdDev = denoisingInf[ijIndex].stdDev[0];
 
                         // INDEX
                         indexVal = (pow(j,2) + pow(i,2))/(2.0f * indexVariance); 
                         indexVal = exp(-indexVal);
 
                         // COLOUR
-                        colVal = (pow(ijCol.x-pCol.x,2) + pow(ijCol.y-pCol.y,2) + pow(ijCol.z-pCol.z,2))/((col1StdDev + col2StdDev) * 2.0f * colVariance); 
+                        colVal = (pow(ijCol.x-pCol.x,2) + pow(ijCol.y-pCol.y,2) + pow(ijCol.z-pCol.z,2))/((col1StdDev + col2StdDev) * 2.0f * colVariance + 0.000001f); 
                         colVal = exp(-colVal);
 
                         // NORMAL
-                        normalVal = (pow(ijNormal.x-pNormal.x,2) + pow(ijNormal.y-pNormal.y,2) + pow(ijNormal.z-pNormal.z,2))/(normalStdDev * 2.0f * normalVariance); 
+                        normalVal = (pow(ijNormal.x-pNormal.x,2) + pow(ijNormal.y-pNormal.y,2) + pow(ijNormal.z-pNormal.z,2))/(normalStdDev * 2.0f * normalVariance + 0.000001f); 
                         normalVal = exp(-normalVal);
 
                         // ALBEDO1
-                        albedo1Val = (pow(ijAlbedo1.x-pAlbedo1.x,2) + pow(ijAlbedo1.y-pAlbedo1.y,2) + pow(ijAlbedo1.z-pAlbedo1.z,2))/(albedo1StdDev * 2.0f * albedo1Variance); 
+                        albedo1Val = (pow(ijAlbedo1.x-pAlbedo1.x,2) + pow(ijAlbedo1.y-pAlbedo1.y,2) + pow(ijAlbedo1.z-pAlbedo1.z,2))/(albedo1StdDev * 2.0f * albedo1Variance + 0.000001f); 
                         albedo1Val = exp(-albedo1Val);
 
                         // ALBEDO2
-                        albedo2Val = (pow(ijAlbedo2.x-pAlbedo2.x,2) + pow(ijAlbedo2.y-pAlbedo2.y,2) + pow(ijAlbedo2.z-pAlbedo2.z,2))/(albedo2StdDev * 2.0f * albedo2Variance); 
+                        albedo2Val = (pow(ijAlbedo2.x-pAlbedo2.x,2) + pow(ijAlbedo2.y-pAlbedo2.y,2) + pow(ijAlbedo2.z-pAlbedo2.z,2))/(albedo2StdDev * 2.0f * albedo2Variance + 0.000001f); 
                         albedo2Val = exp(-albedo2Val);
 
-                        //// WORDLD POS
-                        worldPosVal = (pow(ijWorldPos.x-pWorldPos.x,2) + pow(ijWorldPos.y-pWorldPos.y,2) + pow(ijWorldPos.z-pWorldPos.z,2))/(worldPosStdDev * 2.0f * worldPosVariance); 
+                        // WORDLD POS
+                        worldPosVal = (pow(ijWorldPos.x-pWorldPos.x,2) + pow(ijWorldPos.y-pWorldPos.y,2) + pow(ijWorldPos.z-pWorldPos.z,2))/( 2.0f * worldPosStdDev *worldPosVariance + 0.000001f);
                         worldPosVal = exp(-worldPosVal);
 
                         // DIRECT LIGHT
-                        directLightVal = pow(ijDirectLight-pDirectLight,2)/(directLightStdDev * 2.0f * directLightVariance); 
+                        directLightVal = pow(ijDirectLight-pDirectLight,2)/(directLightStdDev * 2.0f * directLightVariance + 0.000001f); 
                         directLightVal = exp(-directLightVal);
 
                         weight = indexVal*colVal*normalVal*albedo1Val*albedo2Val*worldPosVal*directLightVal; 
@@ -369,22 +369,22 @@
                 float pDirectLight = directLight[index].x / sampleCount;
 
                 // Standard Deviations
-			    float col1StdDev        = denoisingInf[index].stdDev[0] + 0.001f;
-			    float normalStdDev      = denoisingInf[index].stdDev[1] + 0.001f;
-			    float albedo1StdDev     = denoisingInf[index].stdDev[2] + 0.001f;
-			    float albedo2StdDev     = denoisingInf[index].stdDev[3] + 0.001f;
-			    float worldPosStdDev    = denoisingInf[index].stdDev[4] + 0.001f;
-                float directLightStdDev = denoisingInf[index].stdDev[5] + 0.001f;
+			    float col1StdDev        = denoisingInf[index].stdDev[0];
+			    float normalStdDev      = denoisingInf[index].stdDev[1];
+			    float albedo1StdDev     = denoisingInf[index].stdDev[2];
+			    float albedo2StdDev     = denoisingInf[index].stdDev[3];
+			    float worldPosStdDev    = denoisingInf[index].stdDev[4];
+                float directLightStdDev = denoisingInf[index].stdDev[5];
 
 
                 // Variances
-                float indexVariance =       denoisingInf[index].variances[0] + 0.001f;
-                float colVariance =         denoisingInf[index].variances[1] + 0.001f;
-                float normalVariance =      denoisingInf[index].variances[2] + 0.001f;
-                float albedo1Variance =     denoisingInf[index].variances[3] + 0.001f;
-                float albedo2Variance =     denoisingInf[index].variances[4] + 0.001f;
-                float worldPosVariance =    denoisingInf[index].variances[5] + 0.001f;
-                float directLightVariance = denoisingInf[index].variances[6] + 0.001f;
+                float indexVariance =       denoisingInf[index].variances[0];
+                float colVariance =         denoisingInf[index].variances[1];
+                float normalVariance =      denoisingInf[index].variances[2];
+                float albedo1Variance =     denoisingInf[index].variances[3];
+                float albedo2Variance =     denoisingInf[index].variances[4];
+                float worldPosVariance =    denoisingInf[index].variances[5];
+                float directLightVariance = denoisingInf[index].variances[6];
 
                 vec3 ijCol;
                 vec3 ijNormal;
@@ -412,11 +412,11 @@
                         iFixed = iMain + i < 0 ? 0 : (iMain + i >= xRes ? xRes-1 : iMain + i);
                         ijIndex = jFixed*xRes + iFixed;
 
-                        ijCol = preScreen[ijIndex] / sampleCount;
-                        ijNormal = normal[ijIndex] / sampleCount;
-                        ijAlbedo1 = albedo1[ijIndex] / sampleCount;
-                        ijAlbedo2 = albedo2[ijIndex] / sampleCount;
-                        ijWorldPos = worldPos[ijIndex] / sampleCount;
+                        ijCol =         preScreen[ijIndex]     / sampleCount;
+                        ijNormal =      normal[ijIndex]        / sampleCount;
+                        ijAlbedo1 =     albedo1[ijIndex]       / sampleCount;
+                        ijAlbedo2 =     albedo2[ijIndex]       / sampleCount;
+                        ijWorldPos =    worldPos[ijIndex]      / sampleCount;
                         ijDirectLight = directLight[ijIndex].x / sampleCount;
 
                         col2StdDev = denoisingInf[ijIndex].stdDev[0] + 0.000001f;
@@ -426,27 +426,27 @@
                         indexVal = exp(-indexVal);
 
                         // COLOUR
-                        colVal = (pow(ijCol.x-pCol.x,2) + pow(ijCol.y-pCol.y,2) + pow(ijCol.z-pCol.z,2))/((col1StdDev) * 2.0f * colVariance); 
+                        colVal = (pow(ijCol.x-pCol.x,2) + pow(ijCol.y-pCol.y,2) + pow(ijCol.z-pCol.z,2))/((col1StdDev) * 2.0f * colVariance + 0.000001f); 
                         colVal = exp(-colVal);
 
                         // NORMAL
-                        normalVal = (pow(ijNormal.x-pNormal.x,2) + pow(ijNormal.y-pNormal.y,2) + pow(ijNormal.z-pNormal.z,2))/(normalStdDev * 2.0f * normalVariance); 
+                        normalVal = (pow(ijNormal.x-pNormal.x,2) + pow(ijNormal.y-pNormal.y,2) + pow(ijNormal.z-pNormal.z,2))/(normalStdDev * 2.0f * normalVariance + 0.000001f); 
                         normalVal = exp(-normalVal);
 
                         // ALBEDO1
-                        albedo1Val = (pow(ijAlbedo1.x-pAlbedo1.x,2) + pow(ijAlbedo1.y-pAlbedo1.y,2) + pow(ijAlbedo1.z-pAlbedo1.z,2))/(albedo1StdDev * 2.0f * albedo1Variance); 
+                        albedo1Val = (pow(ijAlbedo1.x-pAlbedo1.x,2) + pow(ijAlbedo1.y-pAlbedo1.y,2) + pow(ijAlbedo1.z-pAlbedo1.z,2))/(albedo1StdDev * 2.0f * albedo1Variance + 0.000001f); 
                         albedo1Val = exp(-albedo1Val);
 
                         // ALBEDO2
-                        albedo2Val = (pow(ijAlbedo2.x-pAlbedo2.x,2) + pow(ijAlbedo2.y-pAlbedo2.y,2) + pow(ijAlbedo2.z-pAlbedo2.z,2))/(albedo2StdDev * 2.0f * albedo2Variance); 
+                        albedo2Val = (pow(ijAlbedo2.x-pAlbedo2.x,2) + pow(ijAlbedo2.y-pAlbedo2.y,2) + pow(ijAlbedo2.z-pAlbedo2.z,2))/(albedo2StdDev * 2.0f * albedo2Variance + 0.000001f); 
                         albedo2Val = exp(-albedo2Val);
 
-                        // WORDLD POS
-                        worldPosVal = (pow(ijWorldPos.x-pWorldPos.x,2) + pow(ijWorldPos.y-pWorldPos.y,2) + pow(ijWorldPos.z-pWorldPos.z,2))/(worldPosStdDev * 2.0f * worldPosVariance); 
+                        // WORLD POS
+                        worldPosVal = (pow(ijWorldPos.x-pWorldPos.x,2) + pow(ijWorldPos.y-pWorldPos.y,2) + pow(ijWorldPos.z-pWorldPos.z,2))/( worldPosStdDev * 2.0f * worldPosVariance + 0.000001f); 
                         worldPosVal = exp(-worldPosVal);
 
                         // DIRECT LIGHT
-                        directLightVal = pow(ijDirectLight-pDirectLight,2)/(directLightStdDev * 2.0f * directLightVariance); 
+                        directLightVal = pow(ijDirectLight-pDirectLight,2)/(directLightStdDev * 2.0f * directLightVariance + 0.000001f); 
                         directLightVal = exp(-directLightVal);
 
                         weight = indexVal*colVal*normalVal*albedo1Val*albedo2Val*worldPosVal*directLightVal; 

@@ -23,7 +23,7 @@ public:
 		double _wallRadius = 10;
 
 		//objList.push_back(std::make_shared<Sphere>(vec3(0, _wallDist, 0), lightMat1, 1));
-        objList.push_back(std::make_shared<AABB>(vec3(0, _wallDist, 0), lightMat1, vec3(-2.5f, -1.0f, -2.5f), vec3(2.5f, -0.5f, 2.5f)));
+        objList.push_back(std::make_shared<AABB>(vec3(0, _wallDist-1, 0), lightMat1, vec3(-2.5f, -1.0f, -2.5f), vec3(2.5f, -0.5f, 2.5f)));
         AddToImpList(0);
 
 		objList.push_back(std::make_shared<AABB>(vec3(0,0,_wallDist), wallMat2, vec3(-_wallRadius, -_wallRadius, 0), vec3(_wallRadius, _wallRadius, 0)) );      // Front
@@ -51,9 +51,15 @@ public:
     }   
     void RemoveShape(int s) {
         if (s >= 0 && s < objList.size()) {
-            RemoveFromImpList(s);
+
             std::swap(objList.at(s), objList.back());
             objList.pop_back();
+
+            // Need to remake important list
+            importantList = std::vector<int>();
+            for (int ind = 0; ind < objList.size(); ind++) 
+                if (objList[ind]->inImportantList)
+                    AddToImpList(ind);
         }  
     }
 
