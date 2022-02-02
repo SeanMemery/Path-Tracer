@@ -19,6 +19,8 @@ DenoiserNN denoiserNN;
 int denoisingN, trainingEpoch, denoisingBackend;
 std::string denoisingSkePUBackend;
 bool training, weightsLoaded;
+float* layerTwoValues; 
+float* layerThreeValues;
 
 // Screens
 vec3* preScreen;
@@ -33,8 +35,10 @@ vec3* targetCol;
 DenoisingInf* denoisingInf;
 
 
+
 PT::PT() :
-    fileName("")
+    fileName(""),
+    weightsName("")
  {
 
     screenPerc = 0.963f;
@@ -44,7 +48,6 @@ PT::PT() :
     yRes = 1080 * resPerc;
     xScreen = 1920 * screenPerc;
     yScreen = 1080 * screenPerc;
-    maxDepth = 5;
     currentRenderer = 6;
     denoisingBackend = 1;
     rendering = true;
@@ -65,8 +68,8 @@ PT::PT() :
     displayMetric = 0;
     denoisingN = 1;
     maxDepth = 4;
-    lRateInt = 9;
-    randSamp = 0.017f;
+    lRateInt = 6;
+    randSamp = 0.005f;
 
     scene = Scene();
     scene.InitScene();
@@ -75,7 +78,7 @@ PT::PT() :
     denoiser = Denoiser();
     denoiserNN = DenoiserNN();
 
-    InitScreens();
+    GLOBALS::InitScreens(true);
 }
 
 void PT::RenderLoop() {
@@ -154,31 +157,6 @@ void PT::PostProcess() {
     }
 }
 
-void PT::DeleteScreens() {
-    delete preScreen ;
-    delete postScreen ;
-    delete normal ;
-    delete albedo1 ;
-    delete albedo2 ;
-    delete directLight;
-    delete worldPos;
-    delete denoisedCol ;
-    delete targetCol;
-}
-
-void PT::InitScreens() {
-    preScreen      = new vec3[xRes*yRes];
-    postScreen     = new vec3[xRes*yRes];
-    normal         = new vec3[xRes*yRes];
-    albedo1        = new vec3[xRes*yRes];
-    albedo2        = new vec3[xRes*yRes];
-    directLight    = new vec3[xRes*yRes];
-    worldPos       = new vec3[xRes*yRes];
-    denoisedCol    = new vec3[xRes*yRes];
-    targetCol      = new vec3[xRes*yRes];
-    denoisingInf   = new DenoisingInf[xRes*yRes];
-}
-
 void PT::RefreshScreen(){
     if (moving) {
         xRes = 1920*0.25f;
@@ -199,8 +177,8 @@ void PT::RefreshScreen(){
     totalTime = 0;
 
     // Reset Screens
-    DeleteScreens();
-    InitScreens();
+    GLOBALS::DeleteScreens(true);
+    GLOBALS::InitScreens(true);
 }
 
 void PT::ProcessInput() {
@@ -285,7 +263,7 @@ void PT::ImGui() {
         ImGui::SliderFloat("Exposure", &exposure, 0.1f, 10.0f);
         ImGui::SliderFloat("Gamma", &g, 1.0f, 10.0f);
 
-        refresh |= ImGui::SliderFloat("Random Sampling Strength", &randSamp, 0.0f, 1.0f);
+        refresh |= ImGui::SliderFloat("Random Sampling Strength", &randSamp, 0.0f, 0.25f);
         refresh |= ImGui::SliderInt("Max Depth", &maxDepth, 1, 12);
         refresh |= ImGui::SliderInt("Rendering Mode", &currentRenderer, 0, 6);
         switch(currentRenderer) {
@@ -337,33 +315,35 @@ void PT::ImGui() {
             refresh = true;
         }
 
-        ImGui::SliderInt("Obj Edit", &objEdit, 0, scene.objList.size()-1);
+        if (scene.objList.size() > 0) {
 
-        ImGui::Text("Number of Objects: %d", scene.objList.size());
-        ImGui::Text("-------------------Obj-------------------");
-        if (ImGui::Button("Remove Shape")) {
-            scene.RemoveShape(objEdit);
-            refresh = true;
-            objEdit = 0;
-        }
-        if (scene.objList[objEdit]->inImportantList) {
-            if (ImGui::Button("Remove from Imp List")) {
-                scene.RemoveFromImpList(objEdit);
-                refresh = true;
-            }
-        } else {
-            if (ImGui::Button("Add to Imp List")) {
-                scene.AddToImpList(objEdit);
-                refresh = true;
-            }
-        }
-        refresh |= scene.objList[objEdit]->ImGuiEdit();
-        ImGui::Text("-------------------Obj-------------------");
-        ImGui::Text("");
-        ImGui::Text("-------------------Mat-------------------");
-        refresh |= scene.objList[objEdit]->material.ImGuiEdit();
-        ImGui::Text("-------------------Mat-------------------");
+            ImGui::SliderInt("Obj Edit", &objEdit, 0, scene.objList.size()-1);
 
+            ImGui::Text("Number of Objects: %d", scene.objList.size());
+            ImGui::Text("-------------------Obj-------------------");
+            if (ImGui::Button("Remove Shape")) {
+                scene.RemoveShape(objEdit);
+                refresh = true;
+                objEdit = 0;
+            }
+            if (scene.objList[objEdit]->inImportantList) {
+                if (ImGui::Button("Remove from Imp List")) {
+                    scene.RemoveFromImpList(objEdit);
+                    refresh = true;
+                }
+            } else {
+                if (ImGui::Button("Add to Imp List")) {
+                    scene.AddToImpList(objEdit);
+                    refresh = true;
+                }
+            }
+            refresh |= scene.objList[objEdit]->ImGuiEdit();
+            ImGui::Text("-------------------Obj-------------------");
+            ImGui::Text("");
+            ImGui::Text("-------------------Mat-------------------");
+            refresh |= scene.objList[objEdit]->material.ImGuiEdit();
+            ImGui::Text("-------------------Mat-------------------");
+        }
 
         ImGui::End();
     }
@@ -403,7 +383,7 @@ void PT::ImGui() {
                 }
 
             // Update screen texture based on input metric
-            // 0: Regular View,  denoised image, 2: normal, 3: albedo1, 4: albedo2, 5: directLight, 6: worldPos, 7 tagetCol
+            // 0: Regular View, 1: denoised image, 2: normal, 3: albedo1, 4: albedo2, 5: directLight, 6: worldPos, 7 tagetCol
 
             ImGui::SliderInt("Display", &displayMetric, 0, 7);
             ImGui::Text(displayNames[displayMetric]);
@@ -418,14 +398,12 @@ void PT::ImGui() {
 
                 ImGui::Text("");
                     
-                if (!weightsLoaded) {
-                    if (ImGui::Button("Load Weights"))
-                        denoiserNN.LoadWeights();                 
-                } else {
+                ImGui::InputText("Weights File", weightsName, IM_ARRAYSIZE(weightsName));
+                if (ImGui::Button("Load Weights File"))
+                    denoiserNN.LoadWeights(weightsName); 
+                if (weightsLoaded)
                     if (ImGui::Button("Denoise Image"))
-                        denoiser.denoise();
-                }
-                             
+                        denoiser.denoise();                             
 
                 if (ImGui::InputInt("Learning Rate (Inverse)", &lRateInt, 0, 16))
                     denoiserNN.learningRate = 1.0f / pow(10, lRateInt);
@@ -445,13 +423,13 @@ void PT::ImGui() {
                 if (ImGui::Button("Randomize Weights (Overwrite File!)")) {
                     denoiserNN.RandomizeWeights();
                     denoiserNN.OutputWeights();
-                    denoiserNN.LoadWeights();
-                }   
+                    denoiserNN.LoadWeights("NNWeights");
+                }  
 
 
             }
             else {
-                ImGui::Text("---- Need to Pause Rendering ---");
+                ImGui::Text("---- Need to Pause Rendering ----");
             }
         
             ImGui::End();

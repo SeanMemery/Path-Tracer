@@ -664,7 +664,24 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
 
         float meansForMD[5];
         float GxSum[5];
-        float GySum[5];       
+        float GySum[5]; 
+
+        for (c=0;c<10;c++) {
+            out.l2[c] = 0.0f;
+            out.l3[c] = 0.0f;
+        }     
+        for (c=0;c<10;c++) 
+            out.variances[c] = 0.0f;
+        for (c=0; c<5; c++) {
+            out.meansSingle[c] = 0.0f;
+            out.sdSingle[c] = 0.0f;
+            out.meansBlock[c] = 0.0f;
+            out.sdBlock[c] = 0.0f;
+            out.gradients[c] = 0.0f;
+            out.meanDeviation[c] = 0.0f;
+            out.MAD[c] = 0.0f; 
+        }
+        out.L = 0.0f;
 
         // K single Means
         out.meansSingle[0] = r(0,0).normal;
@@ -918,6 +935,12 @@ void DenoiserNN::SkePUForwardProp() {
         in[ind].worldPos    = (worldPos[ind].x   + worldPos[ind].y + worldPos[ind].z) / (3.0f * sampleCount);
         in[ind].directLight = directLight[ind].x / sampleCount;
 
+        pFeatures[ind].normal   = in[ind].normal;
+        pFeatures[ind].alb1     = in[ind].alb1;
+        pFeatures[ind].alb2     = in[ind].alb2;
+        pFeatures[ind].worldPos = in[ind].worldPos;
+        pFeatures[ind].directLight = in[ind].directLight;
+
         in[ind].stdDev[0] = denoisingInf[ind].stdDev[0];
         in[ind].stdDev[1] = denoisingInf[ind].stdDev[1];
         in[ind].stdDev[2] = denoisingInf[ind].stdDev[2];
@@ -990,6 +1013,14 @@ vec3 DenoiserNN::CPUFilterDerivative(int j, int i, int var) {
     float dVals[7] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     float dValMult = 1.0f;
 
+
+    vec3  jCol     , iCol      ;
+    vec3  jNormal  , iNormal   ;
+    vec3  jAlbedo1 , iAlbedo1  ;
+    vec3  jAlbedo2 , iAlbedo2  ;
+    vec3  jWorldPos, iWorldPos ;
+    float jDirectLight, iDirectLight;
+
     // For all pixels j around i
     for (int j1 = -N; j1 <= N; j1++) {
         for (int i1 = -N; i1 <= N; i1++) {
@@ -1003,27 +1034,42 @@ vec3 DenoiserNN::CPUFilterDerivative(int j, int i, int var) {
 
             infoj = denoisingInf[jIndex];
 
-            vecSum = (preScreen[jIndex]*info.wcSum - denoisedCol[iIndex]) / info.wcSum;
+            vecSum = (preScreen[jIndex] - denoisedCol[iIndex]) / info.wcSum;
+
+            iCol =         preScreen[iIndex]     / sampleCount;
+            iNormal =      normal[iIndex]        / sampleCount;
+            iAlbedo1 =     albedo1[iIndex]       / sampleCount;
+            iAlbedo2 =     albedo2[iIndex]       / sampleCount;
+            iWorldPos =    worldPos[iIndex]      / sampleCount;
+            iDirectLight = directLight[iIndex].x / sampleCount;
+
+
+            jCol =         preScreen[jIndex]     / sampleCount;
+            jNormal =      normal[jIndex]        / sampleCount;
+            jAlbedo1 =     albedo1[jIndex]       / sampleCount;
+            jAlbedo2 =     albedo2[jIndex]       / sampleCount;
+            jWorldPos =    worldPos[jIndex]      / sampleCount;
+            jDirectLight = directLight[jIndex].x / sampleCount;
 
             // Index d value
             dVals[0] = (pow(j1-j,2)+pow(i1-i,2)) / (2.0f * info.variances[0] + 0.000001f);
             // Colour d value
-            dVals[1] = (pow(preScreen[iIndex].x - preScreen[jIndex].x,2)+pow(preScreen[iIndex].y - preScreen[jIndex].y,2) + pow(preScreen[iIndex].z - preScreen[jIndex].z,2)) 
+            dVals[1] = (pow(iCol.x - jCol.x,2)+pow(iCol.y - jCol.y,2) + pow(iCol.z - jCol.z,2)) 
             / (2.0f * info.variances[1] * (info.stdDev[0] + infoj.stdDev[0])  + 0.000001f);
             // Normal d value
-            dVals[2] = (pow(normal[iIndex].x - normal[jIndex].x,2)+pow(normal[iIndex].y - normal[jIndex].y,2) + pow(normal[iIndex].z - normal[jIndex].z,2)) 
+            dVals[2] = (pow(iNormal.x - jNormal.x,2)+pow(iNormal.y - jNormal.y,2) + pow(iNormal.z - jNormal.z,2)) 
             / (2.0f * info.variances[2] * info.stdDev[1]  + 0.000001f);
             // Alb1 d value
-            dVals[3] = (pow(albedo1[iIndex].x - albedo1[jIndex].x,2)+pow(albedo1[iIndex].y - albedo1[jIndex].y,2) + pow(albedo1[iIndex].z - albedo1[jIndex].z,2)) 
+            dVals[3] = (pow(iAlbedo1.x - jAlbedo1.x,2)+pow(iAlbedo1.y - jAlbedo1.y,2) + pow(iAlbedo1.z - jAlbedo1.z,2)) 
             / (2.0f * info.variances[3] * info.stdDev[2]  + 0.000001f);
             // Alb2 d value
-            dVals[4] = (pow(albedo2[iIndex].x - albedo2[jIndex].x,2)+pow(albedo2[iIndex].y - albedo2[jIndex].y,2) + pow(albedo2[iIndex].z - albedo2[jIndex].z,2)) 
+            dVals[4] = (pow(iAlbedo2.x - jAlbedo2.x,2)+pow(iAlbedo2.y - jAlbedo2.y,2) + pow(iAlbedo2.z - jAlbedo2.z,2)) 
             / (2.0f * info.variances[4] * info.stdDev[3]  + 0.000001f);
             // worldPos d value
-            dVals[5] = (pow(worldPos[iIndex].x - worldPos[jIndex].x,2)+pow(worldPos[iIndex].y - worldPos[jIndex].y,2) + pow(worldPos[iIndex].z - worldPos[jIndex].z,2)) 
+            dVals[5] = (pow(iWorldPos.x - jWorldPos.x,2)+pow(iWorldPos.y - jWorldPos.y,2) + pow(iWorldPos.z - jWorldPos.z,2)) 
             / (2.0f * info.variances[5] * info.stdDev[4]  + 0.000001f);
             // directLight d value
-            dVals[6] = pow(directLight[iIndex].x - directLight[jIndex].x,2) / (2.0f * info.variances[6] * info.stdDev[5] + 0.000001f);
+            dVals[6] = pow(iDirectLight - jDirectLight,2) / (2.0f * info.variances[6] * info.stdDev[5] + 0.000001f);
 
 
             for (dVal=0;dVal<7;dVal++) {
@@ -1098,6 +1144,13 @@ vec3 DenoiserNN::OMPFilterDerivative(int j, int i, int var) {
     DenoisingInf info = denoisingInf[iIndex];
     vec3 fDeriv;
 
+    vec3 iCol =         preScreen[iIndex]     / sampleCount;
+    vec3 iNormal =      normal[iIndex]        / sampleCount;
+    vec3 iAlbedo1 =     albedo1[iIndex]       / sampleCount;
+    vec3 iAlbedo2 =     albedo2[iIndex]       / sampleCount;
+    vec3 iWorldPos =    worldPos[iIndex]      / sampleCount;
+    float iDirectLight = directLight[iIndex].x / sampleCount;
+
     // For all pixels j around i
     #pragma omp parallel for
     for (int j1 = -N; j1 <= N; j1++) {
@@ -1115,27 +1168,35 @@ vec3 DenoiserNN::OMPFilterDerivative(int j, int i, int var) {
 
             DenoisingInf infoj = denoisingInf[jIndex];
 
-            vec3 vecSum = (preScreen[jIndex]*info.wcSum - denoisedCol[iIndex]) / info.wcSum;
+            vec3 vecSum = (preScreen[jIndex] - denoisedCol[iIndex]) / info.wcSum;
+
+
+            vec3 jCol =         preScreen[jIndex]     / sampleCount;
+            vec3 jNormal =      normal[jIndex]        / sampleCount;
+            vec3 jAlbedo1 =     albedo1[jIndex]       / sampleCount;
+            vec3 jAlbedo2 =     albedo2[jIndex]       / sampleCount;
+            vec3 jWorldPos =    worldPos[jIndex]      / sampleCount;
+            float jDirectLight = directLight[jIndex].x / sampleCount;
 
             // Index d value
             dVals[0] = (pow(j1-j,2)+pow(i1-i,2)) / (2.0f * info.variances[0] + 0.000001f);
             // Colour d value
-            dVals[1] = (pow(preScreen[iIndex].x - preScreen[jIndex].x,2)+pow(preScreen[iIndex].y - preScreen[jIndex].y,2) + pow(preScreen[iIndex].z - preScreen[jIndex].z,2)) 
+            dVals[1] = (pow(iCol.x - jCol.x,2)+pow(iCol.y - jCol.y,2) + pow(iCol.z - jCol.z,2)) 
             / (2.0f * info.variances[1] * (info.stdDev[0] + infoj.stdDev[0])  + 0.000001f);
             // Normal d value
-            dVals[2] = (pow(normal[iIndex].x - normal[jIndex].x,2)+pow(normal[iIndex].y - normal[jIndex].y,2) + pow(normal[iIndex].z - normal[jIndex].z,2)) 
+            dVals[2] = (pow(iNormal.x - jNormal.x,2)+pow(iNormal.y - jNormal.y,2) + pow(iNormal.z - jNormal.z,2)) 
             / (2.0f * info.variances[2] * info.stdDev[1]  + 0.000001f);
             // Alb1 d value
-            dVals[3] = (pow(albedo1[iIndex].x - albedo1[jIndex].x,2)+pow(albedo1[iIndex].y - albedo1[jIndex].y,2) + pow(albedo1[iIndex].z - albedo1[jIndex].z,2)) 
+            dVals[3] = (pow(iAlbedo1.x - jAlbedo1.x,2)+pow(iAlbedo1.y - jAlbedo1.y,2) + pow(iAlbedo1.z - jAlbedo1.z,2)) 
             / (2.0f * info.variances[3] * info.stdDev[2]  + 0.000001f);
             // Alb2 d value
-            dVals[4] = (pow(albedo2[iIndex].x - albedo2[jIndex].x,2)+pow(albedo2[iIndex].y - albedo2[jIndex].y,2) + pow(albedo2[iIndex].z - albedo2[jIndex].z,2)) 
+            dVals[4] = (pow(iAlbedo2.x - jAlbedo2.x,2)+pow(iAlbedo2.y - jAlbedo2.y,2) + pow(iAlbedo2.z - jAlbedo2.z,2)) 
             / (2.0f * info.variances[4] * info.stdDev[3]  + 0.000001f);
             // worldPos d value
-            dVals[5] = (pow(worldPos[iIndex].x - worldPos[jIndex].x,2)+pow(worldPos[iIndex].y - worldPos[jIndex].y,2) + pow(worldPos[iIndex].z - worldPos[jIndex].z,2)) 
+            dVals[5] = (pow(iWorldPos.x - jWorldPos.x,2)+pow(iWorldPos.y - jWorldPos.y,2) + pow(iWorldPos.z - jWorldPos.z,2)) 
             / (2.0f * info.variances[5] * info.stdDev[4]  + 0.000001f);
             // directLight d value
-            dVals[6] = pow(directLight[iIndex].x - directLight[jIndex].x,2) / (2.0f * info.variances[6] * info.stdDev[5] + 0.000001f);
+            dVals[6] = pow(iDirectLight - jDirectLight,2) / (2.0f * info.variances[6] * info.stdDev[5] + 0.000001f);
 
 
             float dValMult = 1.0f;
@@ -1204,8 +1265,255 @@ void DenoiserNN::OMPBackProp() {
         }
     }
 }
+struct FilterDerivIn {
+    float preScreen[3];
+    float normal[3];
+    float alb1[3];
+    float alb2[3];
+    float worldPos[3];
+    float denoisedCol[3];
+    float directLight;
+    float stdDev[6];
+    float variances[7];
+    float wcSum;
+};
+struct FilterDerivOut {
+    float paramXYZ[7][3];
+};
+struct SkePUBPIn {
+
+    float targetCol[3];
+    float denoisedCol[3];
+    FilterDerivOut deriv;
+
+    float s[36];
+    float l2[10];
+    float l3[10];
+
+};
+struct SkePUBPOut {
+
+    float onetwo[360];
+    float twothree[100];
+    float threefour[70];
+
+};
+static FilterDerivOut SkePUFDFunc(skepu::Region2D<FilterDerivIn> r, int samples) {
+    // Contribution to the filtered colour of the filter paramater
+
+    int dVal, var, c;
+    float vecSum[3];
+    float weightOverParam = 0.0f;
+
+    FilterDerivOut fDeriv;
+
+    float dVals[7] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    float dValMult = 1.0f;
+
+    float iCol[3]   ;
+    float iNormal[3]  ;
+    float iAlbedo1[3] ;
+    float iAlbedo2[3] ;
+    float iWorldPos[3];
+    float iDirectLight;
+    for (c =0; c<3;c++) {
+        iCol[c]      = r(0,0).preScreen[c] / samples;
+        iNormal[c]   = r(0,0).normal[c]    / samples;
+        iAlbedo1[c]  = r(0,0).alb1[c]      / samples;
+        iAlbedo2[c]  = r(0,0).alb2[c]      / samples;
+        iWorldPos[c] = r(0,0).worldPos[c]  / samples;
+    }
+    iDirectLight = r(0,0).directLight / samples;
+
+    float  jCol[3]      ;
+    float  jNormal[3]   ;
+    float  jAlbedo1[3]  ;
+    float  jAlbedo2[3]  ;
+    float  jWorldPos[3] ;
+    float jDirectLight;
+
+    for (var=0; var<7; var++) {
+        fDeriv.paramXYZ[var][0] = 0.0f;
+        fDeriv.paramXYZ[var][1] = 0.0f;
+        fDeriv.paramXYZ[var][2] = 0.0f;
+    }
+
+    // For all pixels j around i
+    for (int j = -r.oj; j <= r.oj; j++) {
+        for (int i = -r.oi; i <= r.oi; i++) {
+
+            vecSum[0] = (r(j, i).preScreen[0] - r(j, i).denoisedCol[0]) / r(j, i).wcSum;
+            vecSum[1] = (r(j, i).preScreen[1] - r(j, i).denoisedCol[1]) / r(j, i).wcSum;
+            vecSum[2] = (r(j, i).preScreen[2] - r(j, i).denoisedCol[2]) / r(j, i).wcSum;
+
+            for (c =0; c<3;c++) {
+                jCol[c]      = r(j,i).preScreen[c] / samples;
+                jNormal[c]   = r(j,i).normal[c]    / samples;
+                jAlbedo1[c]  = r(j,i).alb1[c]      / samples;
+                jAlbedo2[c]  = r(j,i).alb2[c]      / samples;
+                jWorldPos[c] = r(j,i).worldPos[c]  / samples;
+            }
+            jDirectLight = r(j,i).directLight / samples;
+
+
+            // Index d value
+            dVals[0] = (pow(j,2)+pow(i,2)) / (2.0f * r(0,0).variances[0] + 0.000001f);
+            // Colour d value
+            dVals[1] = (pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2)) 
+            / (2.0f * r(0,0).variances[1] * (r(0,0).stdDev[0] + r(j,i).stdDev[0])  + 0.000001f);
+            // Normal d value
+            dVals[2] = (pow(iNormal[0] - jNormal[0],2)+pow(iNormal[1] - jNormal[1],2) + pow(iNormal[2] - jNormal[2],2)) 
+            / (2.0f * r(0,0).variances[2] * r(0,0).stdDev[1]  + 0.000001f);
+            // Alb1 d value
+            dVals[3] = (pow(iAlbedo1[0] - jAlbedo1[0],2)+pow(iAlbedo1[1] - jAlbedo1[1],2) + pow(iAlbedo1[2] - jAlbedo1[2],2)) 
+            / (2.0f * r(0,0).variances[3] * r(0,0).stdDev[2]  + 0.000001f);
+            // Alb2 d value
+            dVals[4] = (pow(iAlbedo2[0] - jAlbedo2[0],2)+pow(iAlbedo2[1] - jAlbedo2[1],2) + pow(iAlbedo2[2] - jAlbedo2[2],2)) 
+            / (2.0f * r(0,0).variances[4] * r(0,0).stdDev[3]  + 0.000001f);
+            // worldPos d value
+            dVals[5] = (pow(iWorldPos[0] - jWorldPos[0],2)+pow(iWorldPos[1] - jWorldPos[1],2) + pow(iWorldPos[2] - jWorldPos[2],2)) 
+            / (2.0f * r(0,0).variances[5] * r(0,0).stdDev[4]  + 0.000001f);
+            // directLight d value
+            dVals[6] = pow(iDirectLight - jDirectLight,2) / (2.0f * r(0,0).variances[6] * r(0,0).stdDev[5] + 0.000001f);
+
+
+            for (dVal=0;dVal<7;dVal++) {
+                dVals[dVal] += 0.000001f;
+                dValMult *= exp(-dVals[dVal]) + 0.000001f;;
+            }
+
+            for (var=0; var<7; var++) {
+                weightOverParam = dValMult * dVals[var] * 2.0f / r(0,0).variances[var];
+                fDeriv.paramXYZ[var][0] += vecSum[0]*weightOverParam;
+                fDeriv.paramXYZ[var][1] += vecSum[1]*weightOverParam;
+                fDeriv.paramXYZ[var][2] += vecSum[2]*weightOverParam;
+            }
+
+        }      
+    } 
+
+    return fDeriv;
+}
+static SkePUBPOut SkePUBPFunc(SkePUBPIn f, int samples, float learningRate) {
+
+            float paramOverWeight, dot;
+            float errorOverColour[3];
+            float colourOverParam[3];
+
+            SkePUBPOut out;
+
+            // Derivative One: samples * (cFiltered - cTarget)/(cTarget*cTarget)
+            errorOverColour[0] = samples * (f.denoisedCol[0] - f.targetCol[0]) / (f.targetCol[0]*f.targetCol[0]+0.0001f);
+            errorOverColour[1] = samples * (f.denoisedCol[1] - f.targetCol[1]) / (f.targetCol[1]*f.targetCol[1]+0.0001f);
+            errorOverColour[2] = samples * (f.denoisedCol[2] - f.targetCol[2]) / (f.targetCol[2]*f.targetCol[2]+0.0001f);
+
+            // Filter Paramaters (index, col, K)
+            int w;
+            for (int var=0;var<7;var++) {
+
+                // Derivative Two: cross-bilateral filter derivative
+                colourOverParam[0] = f.deriv.paramXYZ[var][0];
+                colourOverParam[1] = f.deriv.paramXYZ[var][1];
+                colourOverParam[2] = f.deriv.paramXYZ[var][2];
+
+                // Dot Product
+                dot = errorOverColour[0]*colourOverParam[0] + 
+                      errorOverColour[1]*colourOverParam[1] + 
+                      errorOverColour[2]*colourOverParam[2];
+
+                // Weights One
+                for (w=0;w<360;w++){
+                    // Derivative Three: filter/weight = secondary feature input at weight index
+                    paramOverWeight = f.s[w % 36];
+                    out.onetwo[w] = learningRate*dot*paramOverWeight;
+                }
+                // Weights Two
+                for (w=0;w<100;w++){
+                    // Derivative Three: filter/weight = second layer value at weight index
+                    paramOverWeight = f.l2[w % 10];
+                    out.twothree[w] = learningRate*dot*paramOverWeight;
+                }
+                // Weights Three
+                for (w=0;w<70;w++){
+                    // Derivative Three: filter/weight = third layer value at weight index
+                    paramOverWeight = f.l3[w % 10];
+                    out.threefour[w] = learningRate*dot*paramOverWeight;
+                }
+            }
+
+        return out;
+}
 void DenoiserNN::SkePUBackProp() {
 
+    // Calc Filter Derivs with Map Overlap
+    auto fIn  = skepu::Matrix<FilterDerivIn>(yRes, xRes);
+    auto fOut = skepu::Matrix<FilterDerivOut>(yRes, xRes);
+    int c;
+    for (int ind = 0; ind < xRes*yRes; ind++) {
+
+        for (c=0; c<7; c++) {
+            fIn[ind].preScreen[c]    = preScreen[ind][c];
+            fIn[ind].normal[c]       = normal[ind][c];
+            fIn[ind].alb1[c]         = albedo1[ind][c];
+            fIn[ind].alb2[c]         = albedo2[ind][c];
+            fIn[ind].worldPos[c]     = worldPos[ind][c];
+            fIn[ind].denoisedCol[c]  = denoisedCol[ind][c];
+        }
+        fIn[ind].directLight = directLight[ind].x;
+        fIn[ind].wcSum = denoisingInf[ind].wcSum;
+
+        for (c=0; c<7; c++)
+             fIn[ind].variances[c] = denoisingInf[ind].variances[c];
+        for (c=0; c<6; c++)
+            fIn[ind].stdDev[c] = denoisingInf[ind].stdDev[c];
+    }
+
+    auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(denoisingSkePUBackend)};
+	spec.activateBackend();
+    auto convol = skepu::MapOverlap(SkePUFDFunc);
+	convol.setBackend(spec);
+    convol.setOverlap(denoisingN);
+    convol.setEdgeMode(skepu::Edge::Duplicate);
+
+    convol(fOut, fIn, sampleCount);
+    //fOut.updateHost();
+
+    //Calc New Weights with Map, then loop through weights to add
+
+    auto bpIn  = skepu::Matrix<SkePUBPIn>(yRes, xRes);
+    auto bpOut = skepu::Matrix<SkePUBPOut>(yRes, xRes);
+    for (int ind = 0; ind < xRes*yRes; ind++) {
+
+        for (c=0; c<7; c++) {
+            bpIn[ind].targetCol[c]    = targetCol[ind][c];
+            bpIn[ind].denoisedCol[c]       = denoisedCol[ind][c];
+        }
+        bpIn[ind].deriv = fOut[ind];
+
+        for (c=0; c<36; c++)
+             bpIn[ind].s[c] = sFeatures[ind](c);
+        for (c=0; c<10; c++) {
+            bpIn[ind].l2[c] = layerTwoValues[10*ind + c];
+            bpIn[ind].l3[c] = layerThreeValues[10*ind + c];
+        }
+    }
+
+    spec = skepu::BackendSpec{skepu::Backend::typeFromString(denoisingSkePUBackend)};
+	spec.activateBackend();
+    auto map = skepu::Map<1>(SkePUBPFunc);
+	map.setBackend(spec);
+
+    map(bpOut, bpIn, sampleCount, learningRate);
+    //bpOut.updateHost();
+
+    for (int ind = 0; ind < xRes*yRes; ind++) {
+        for (c=0; c<360; c++)
+             onetwo[c] += bpOut[ind].onetwo[c];
+        for (c=0; c<100; c++) 
+            twothree[c] += bpOut[ind].twothree[c];
+        for (c=0; c<70; c++) 
+            threefour[c] += bpOut[ind].threefour[c];
+    }
 }
 
 
@@ -1229,35 +1537,6 @@ void DenoiserNN::GenRelMSE() {
 
     relMSE *= sampleCount/2.0f;
 }
-void DenoiserNN::DeleteScreens() {
-    delete preScreen ;
-    delete postScreen ;
-    delete normal ;
-    delete albedo1 ;
-    delete albedo2 ;
-    delete directLight;
-    delete worldPos;
-    delete denoisedCol ;
-    //delete targetCol;
-    delete layerTwoValues;
-    delete layerThreeValues;
-}
-
-void DenoiserNN::InitScreens() {
-    preScreen = new vec3[xRes*yRes];
-    postScreen = new vec3[xRes*yRes];
-    normal = new vec3[xRes*yRes];
-    albedo1 = new vec3[xRes*yRes];
-    albedo2 = new vec3[xRes*yRes];
-    directLight = new vec3[xRes*yRes];
-    worldPos = new vec3[xRes*yRes];
-    denoisedCol = new vec3[xRes*yRes];
-    //targetCol = new vec3[xRes*yRes];
-    denoisingInf = new DenoisingInf[xRes*yRes];
-
-    layerTwoValues = new float[10*xRes*yRes];
-    layerThreeValues = new float[10*xRes*yRes];
-}
 
 void DenoiserNN::InitTraining() {
 
@@ -1266,7 +1545,7 @@ void DenoiserNN::InitTraining() {
     // Get Target
 	denoiser.saveTargetCol();
 	// Load Current Values
-	if (!LoadWeights())
+	if (!LoadWeights("NNWeights"))
 		RandomizeWeights();
     weightsLoaded = true;
 
@@ -1305,8 +1584,8 @@ void DenoiserNN::TrainNN() {
             sampleCount = 0;
 
             // Initialize
-            DeleteScreens();
-			InitScreens();
+            GLOBALS::DeleteScreens(false);
+            GLOBALS::InitScreens(false);
 
 			// Gen new image
             for (int sample = 0; sample < samplesWhenTraining; sample++)
@@ -1386,13 +1665,16 @@ void DenoiserNN::OutputWeights() {
     else
         std::cout << "Could not write weights file !" << std::endl;
 }
-bool DenoiserNN::LoadWeights() {
-    std::ifstream rFile("NNWeights.txt");
+bool DenoiserNN::LoadWeights(std::string name) {
+    if (name.size()==0)
+        name = std::string("NNWeights");
+    name.append(".txt");
+    std::ifstream rFile(name);
     std::string newLine;
     int ind;
 
     if (!rFile.is_open()){
-        std::cout << "Cannot open NNWeights.txt!" << std::endl;
+        std::cout << "Cannot open " << name << "!" << std::endl;
         return false;
     }
 
@@ -1401,21 +1683,21 @@ bool DenoiserNN::LoadWeights() {
         std::istringstream in(newLine);
         for (ind = 0; ind < 360; ind++)
             in >> onetwo[ind];
-    } else {std::cout << "Invalid NNWeights.txt file! " << std::endl; return false;}
+    } else {std::cout << "Invalid file " << name << "!" << std::endl; return false;}
 
     // Line 2
     if (getline(rFile, newLine)) {
         std::istringstream in(newLine);
         for (ind = 0; ind < 100; ind++)
             in >> twothree[ind];
-    } else {std::cout << "Invalid NNWeights.txt file! " << std::endl; return false;}
+    } else {std::cout << "Invalid file " << name << "!" << std::endl; return false;}
 
     // Line 3
     if (getline(rFile, newLine)) {
         std::istringstream in(newLine);
         for (ind = 0; ind < 70; ind++)
             in >> threefour[ind];
-    } else {std::cout << "Invalid NNWeights.txt file! " << std::endl; return false;}
+    } else {std::cout << "Invalid file " << name << "!" << std::endl; return false;}
 
     weightsLoaded = true;
 

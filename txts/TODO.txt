@@ -129,12 +129,20 @@ TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	- Needs to be glm::vec3 ? why
 	- FIXED: was incrementing numSamples every pixel ! 
 
-23. List of things to do as of 32/01/22:
-	- More robust rendering algorithm i.e. get a real one
+23. List of things to do as of 28/01/22:
+	- More correct rendering algorithm i.e. get a real one
 	- Scene loading
 		- Models on SkePU
 	- Skepu denoising and training
 	- CUDA and OpenGL rendering
 
 24. Crashing when moving around a bunch, probably from updating constants so much
+	- Was a memory leak, wasnt deleting denosingInf I believe
+
+25. Problem with denoising spheres, filter isnt affecting spheres at all, normal related ? 
+    - Not to do with spheres, its the area in front of the camera, not being denoised at all 
+    - not to do with world pos stan dev
+    - its to do with the small vals added to the std dev and variance
+    - actually, might be to do with std dev with random sampling, as its more effective in the centre
+    - Random sampling was broken, FIXED
 

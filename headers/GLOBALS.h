@@ -68,6 +68,47 @@ struct DenoisingInf {
 };
 
 extern DenoisingInf* denoisingInf;
+extern float* layerTwoValues; // 10 vals per pixel
+extern float* layerThreeValues; // 10 vals per pixel
+
+namespace GLOBALS {
+
+    static void DeleteScreens(bool delTarget) {
+        delete preScreen   ;
+        delete postScreen  ;
+        delete normal      ;
+        delete albedo1     ;
+        delete albedo2     ;
+        delete directLight ;
+        delete worldPos    ;
+        delete denoisedCol ;
+        delete denoisingInf;
+
+        if (delTarget)
+            delete targetCol;
+
+        delete layerTwoValues;
+        delete layerThreeValues;
+    }
+
+    static void InitScreens(bool initTarget) {
+        preScreen      = new vec3[xRes*yRes];
+        postScreen     = new vec3[xRes*yRes];
+        normal         = new vec3[xRes*yRes];
+        albedo1        = new vec3[xRes*yRes];
+        albedo2        = new vec3[xRes*yRes];
+        directLight    = new vec3[xRes*yRes];
+        worldPos       = new vec3[xRes*yRes];
+        denoisedCol    = new vec3[xRes*yRes];
+        denoisingInf   = new DenoisingInf[xRes*yRes];
+
+        if (initTarget)
+            targetCol = new vec3[xRes*yRes];
+
+        layerTwoValues = new float[10*xRes*yRes];
+        layerThreeValues = new float[10*xRes*yRes];
+    }
+};
 
 
 

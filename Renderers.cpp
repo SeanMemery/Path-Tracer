@@ -12,19 +12,22 @@
 
         // Rand Samp
         float rSamps[2] = {0.0f, 0.0f};
-        if (constants.randSamp>0.01f) {
+        if (constants.randSamp>0.001f) {
             // Rand vals
             for (int n = 0; n < 2; n++) {
                 uint64_t s0 = randSeeds[0];
                 uint64_t s1 = randSeeds[1];
                 uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
                 double one_two = ((uint64_t)1 << 63) * (double)2.0;
-                rSamps[n] =  constants.randSamp * xorshiro / one_two;
+                rSamps[n] = xorshiro / one_two;
                 s1 ^= s0;
                 randSeeds[0] = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
                 randSeeds[1] = (s1 << 28) | (s1 >> 36);
             }
         }
+        rSamps[0] *= 2;rSamps[1] *= 2;
+        rSamps[0] -= 1;rSamps[1] -= 1;
+        rSamps[0] *= constants.randSamp;rSamps[1] *= constants.randSamp;
 
         // Pixel Coord
         double camForward[3] = {constants.camForward[0], constants.camForward[1], constants.camForward[2]};
@@ -33,14 +36,10 @@
         double pY = -constants.maxAngleV + 2*constants.maxAngleV*((double)ind.row/(double)constants.RESV);
         double pX = -constants.maxAngleH + 2*constants.maxAngleH*((double)ind.col/(double)constants.RESH);
 
-        int pSigns[2];
-        pSigns[0] = pX>0 ? 1 : -1;
-        pSigns[1] = pY>0 ? 1 : -1;
-
         double pix[3] = {0,0,0};
-        pix[0] = camPos[0] + constants.camForward[0]*constants.focalLength + constants.camRight[0]*(pX+pSigns[0]*rSamps[0]) + constants.camUp[0]*(pY+pSigns[1]*rSamps[1]);
-        pix[1] = camPos[1] + constants.camForward[1]*constants.focalLength + constants.camRight[1]*(pX+pSigns[0]*rSamps[0]) + constants.camUp[1]*(pY+pSigns[1]*rSamps[1]);
-        pix[2] = camPos[2] + constants.camForward[2]*constants.focalLength + constants.camRight[2]*(pX+pSigns[0]*rSamps[0]) + constants.camUp[2]*(pY+pSigns[1]*rSamps[1]);
+        pix[0] = camPos[0] + constants.camForward[0]*constants.focalLength + constants.camRight[0]*(pX+rSamps[0]) + constants.camUp[0]*(pY+rSamps[1]);
+        pix[1] = camPos[1] + constants.camForward[1]*constants.focalLength + constants.camRight[1]*(pX+rSamps[0]) + constants.camUp[1]*(pY+rSamps[1]);
+        pix[2] = camPos[2] + constants.camForward[2]*constants.focalLength + constants.camRight[2]*(pX+rSamps[0]) + constants.camUp[2]*(pY+rSamps[1]);
 
         double rayDir[3] = {pix[0]-camPos[0], pix[1]-camPos[1], pix[2]-camPos[2]};
         double n1 = sqrt(rayDir[0]*rayDir[0] + rayDir[1]*rayDir[1] + rayDir[2]*rayDir[2]);
@@ -55,7 +54,7 @@
         // Shadow Rays: counts succesful shadow rays i.e. direct lighting, done for each bounce to provide more info
         int shadowRays[12];
         for (int v=0; v<12; v++){
-            pdfVals[v] = 1.0 / M_PI;
+            pdfVals[v] = 1.0 / (4.0f*M_PI);
             shadowRays[v] = 0.0f;
         }
 
@@ -236,10 +235,10 @@
 
                         // Random Dir Generation
                             double randDir[3];
-                            double rands[3];
+                            double rands[5];
                             {
                                 // Rand vals
-                                for (int n = 0; n < 3; n++) {
+                                for (int n = 0; n < 5; n++) {
                                     uint64_t s0 = randSeeds[0];
                                     uint64_t s1 = randSeeds[1];
                                     uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
@@ -394,12 +393,13 @@
                                 mixPdf = constants.numImportantShapes > 0;
 
                                 if (mixPdf) { 
-                                    impInd = rands[2] * constants.numImportantShapes * 0.99999f;
+                                    impInd = rands[3] * constants.numImportantShapes * 0.99999f;
                                     impShape = constants.importantShapes[impInd];
                                     if (impShape==shapeHit) {
-                                        mixPdf = constants.numImportantShapes > 1;
-                                        impInd = (impInd+1) % constants.numImportantShapes;
-                                        impShape = constants.importantShapes[impInd];
+                                        mixPdf = false;
+                                        // mixPdf = constants.numImportantShapes > 1;
+                                        // impInd = (impInd+1) % constants.numImportantShapes;
+                                        // impShape = constants.importantShapes[impInd];
                                     } 
                                 }
                             }
@@ -408,7 +408,7 @@
                             if (mixPdf) {
                                 // 0
                                 double p0 = 1 / M_PI;
-                                int choosePdf = rands[2] * 2.0f;
+                                int choosePdf = rands[4] > 0.65f ? 1 : 0;
                                 // dot(randomly generated dir, ray dir) / PI
                                 if (choosePdf == 1) {
                                     // Generate dir towards importance shape
@@ -564,8 +564,16 @@
                                                     dir[2]*normals[pos][2];
                                     cosine = cosine < 0.0001f ? 0.0001f : cosine;
 
+                                    float diff[3];
+                                    diff[0] = constants.shapes[impShape][0] - posHit[0];
+                                    diff[1] = constants.shapes[impShape][1] - posHit[1];
+                                    diff[2] = constants.shapes[impShape][2] - posHit[2];
+                                    double dirLen = sqrt(diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]);
+
+
                                     // AABB needs magic number for pdf calc, TODO: LOOK INTO, was too bright before
-                                    p1 = 1 / (cosine * areaSum);// * .01f);
+                                    //p1 = 1 / (cosine * areaSum);
+                                    p1 = dirLen / (cosine * areaSum);
 
                                 } else if (constants.shapes[impShape][7] == 1) {
                                     // Sphere pdf val
@@ -579,10 +587,11 @@
                                     auto solid_angle = M_PI * (1.0f - cos_theta_max) *2.0f;
 
                                     // Sphere needs magic number for pdf calc, TODO: LOOK INTO, was too dark before
-                                    p1 = 1 / (solid_angle);// * 4.0f);
+                                    //p1 = 1 / (solid_angle );
+                                    p1 = constants.shapes[impShape][8] / (solid_angle * sqrt(distance_squared)*4.0f);
                                 }
 
-                                pdfVals[pos] = p0 + p1;
+                                pdfVals[pos] = 0.5f*p0 + 0.5f*p1;
                             }
                         }
                     }
@@ -646,10 +655,12 @@
                                 albedo[1]*finalCol[1],  
                                 albedo[2]*finalCol[2]}; 
 
+            double directLightMult = shadowRays[pos]==1 && constants.numImportantShapes>1 ? constants.numImportantShapes>1 : 1;
+
             double pdfs = scattering_pdf / pdf_val;
-            finalCol[0] = emittance[0] + multVecs[0] * pdfs;
-            finalCol[1] = emittance[1] + multVecs[1] * pdfs;
-            finalCol[2] = emittance[2] + multVecs[2] * pdfs;
+            finalCol[0] = emittance[0] + multVecs[0] * pdfs * directLightMult;
+            finalCol[1] = emittance[1] + multVecs[1] * pdfs * directLightMult;
+            finalCol[2] = emittance[2] + multVecs[2] * pdfs * directLightMult;
         }
         ReturnStruct ret;
         ret.xyz[0] = finalCol[0];

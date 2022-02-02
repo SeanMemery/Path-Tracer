@@ -169,11 +169,9 @@ public:
     void GenRelMSE();
     void RandomizeWeights();
     void OutputWeights();
-    bool LoadWeights();
+    bool LoadWeights(std::string name);
     void InitTraining();
     void EndTraining();
-    void InitScreens();
-    void DeleteScreens();
     void AppendTrainingFile();
 
     DenoiserNN() {
@@ -196,9 +194,9 @@ public:
 
         // Weights: (1-2): 360, (2-3): 100, (3-4): 70
         float onetwo[360];
-        float* layerTwoValues; // 10 vals per pixel
+        // Layer two vals in GLOBALS
         float twothree[100];
-        float* layerThreeValues; // 10 vals per pixel
+        // Layer three vals in GLOBALS
         float threefour[80];
 
         float learningRate = 0.0001f;

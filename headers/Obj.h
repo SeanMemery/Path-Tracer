@@ -10,7 +10,7 @@
 class Obj {
 public:
 
-    Obj() {};
+    Obj() : inImportantList(false) {};
 
     // ImGui Edit Screen
     virtual bool ImGuiEdit() = 0;
