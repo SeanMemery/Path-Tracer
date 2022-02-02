@@ -38,7 +38,8 @@ DenoisingInf* denoisingInf;
 
 PT::PT() :
     fileName(""),
-    weightsName("")
+    weightsName(""),
+    weightsNameSave("")
  {
 
     screenPerc = 0.963f;
@@ -420,9 +421,12 @@ void PT::ImGui() {
                         denoiserNN.EndTraining();   
                 }
 
+                ImGui::InputText("Save Weights File As", weightsNameSave, IM_ARRAYSIZE(weightsNameSave));
+                if (ImGui::Button("Save Weights File"))
+                    denoiserNN.OutputWeights(weightsNameSave); 
                 if (ImGui::Button("Randomize Weights (Overwrite File!)")) {
                     denoiserNN.RandomizeWeights();
-                    denoiserNN.OutputWeights();
+                    denoiserNN.OutputWeights("NNWeights");
                     denoiserNN.LoadWeights("NNWeights");
                 }  
 

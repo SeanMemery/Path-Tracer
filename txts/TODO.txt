@@ -137,7 +137,7 @@ TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	- CUDA and OpenGL rendering
 
 24. Crashing when moving around a bunch, probably from updating constants so much
-	- Was a memory leak, wasnt deleting denosingInf I believe
+	- FIXED Was a memory leak, wasnt deleting denosingInf I believe
 
 25. Problem with denoising spheres, filter isnt affecting spheres at all, normal related ? 
     - Not to do with spheres, its the area in front of the camera, not being denoised at all 

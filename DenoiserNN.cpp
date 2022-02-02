@@ -63,7 +63,6 @@ void DenoiserNN::CPUForwardProp() {
                                     0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
                                     0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
                                     0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-        float madMedians[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
         float medianGetter[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
         int K, i, j;
@@ -220,7 +219,7 @@ void DenoiserNN::CPUForwardProp() {
 
                     // Adjust values
                     for (int v = 0; v < 9; v++) {
-                        valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[2]);
+                        valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[0]);
                     }
 
                     // Reset median getter
@@ -253,7 +252,7 @@ void DenoiserNN::CPUForwardProp() {
                         }
                     }
                     // Final MAD value
-                    s->MAD[feature] = medianGetter[2];
+                    s->MAD[feature] = medianGetter[0];
                 }
                 // L
                 s->L = 1.0f/sampleCount;
@@ -361,7 +360,6 @@ void DenoiserNN::OMPForwardProp() {
                                             0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
                                             0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
                                             0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-                float madMedians[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
                 float medianGetter[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
                 int K, i, j;
@@ -516,7 +514,7 @@ void DenoiserNN::OMPForwardProp() {
 
                     // Adjust values
                     for (int v = 0; v < 9; v++) {
-                        valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[2]);
+                        valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[0]);
                     }
 
                     // Reset median getter
@@ -549,7 +547,7 @@ void DenoiserNN::OMPForwardProp() {
                         }
                     }
                     // Final MAD value
-                    s->MAD[feature] = medianGetter[2];
+                    s->MAD[feature] = medianGetter[0];
                 }
                 // L
                 s->L = 1.0f/sampleCount;
@@ -656,15 +654,18 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
                         2,  0,  -2, 
                         1,  0,  -1};
         int linearInd = 0;
-        float valuesForMAD[5][9];
-        float madMedians[5];
-        float medianGetter[5];
+        float valuesForMAD[5][9] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
+                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
+                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
+                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 
+                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        float medianGetter[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
-        int K, i, j;
+        int i, j;
 
-        float meansForMD[5];
-        float GxSum[5];
-        float GySum[5]; 
+        float meansForMD[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        float GxSum[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        float GySum[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f}; 
 
         for (c=0;c<10;c++) {
             out.l2[c] = 0.0f;
@@ -690,7 +691,7 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
         out.meansSingle[3] = r(0,0).worldPos;
         out.meansSingle[4] = r(0,0).directLight;
 
-        // K single std devs, same as denosiing inf values
+        // K single std devs
 		out.sdSingle[0] = r(0,0).stdDev[1];
 		out.sdSingle[1] = r(0,0).stdDev[2];
 		out.sdSingle[2] = r(0,0).stdDev[3];
@@ -718,18 +719,18 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
         // K block std dev (std dev of col to mean col, or avg of std dev of each ? )
         for ( j = -3; j <= 3; j++) { 
             for ( i = -3; i <= 3; i++) { 
-                out.sdBlock[0] += pow((r(j,i).normal      - out.meansBlock[0]),2)/ 49.0f; 
-                out.sdBlock[1] += pow((r(j,i).alb1        - out.meansBlock[1]),2)/ 49.0f; 
-                out.sdBlock[2] += pow((r(j,i).alb2        - out.meansBlock[2]),2)/ 49.0f; 
-                out.sdBlock[3] += pow((r(j,i).worldPos    - out.meansBlock[3]),2)/ 49.0f; 
-                out.sdBlock[4] += pow((r(j,i).directLight - out.meansBlock[4]),2)/ 49.0f; 
+                out.sdBlock[0] += pow((r(j,i).normal      - out.meansBlock[0]),2); 
+                out.sdBlock[1] += pow((r(j,i).alb1        - out.meansBlock[1]),2); 
+                out.sdBlock[2] += pow((r(j,i).alb2        - out.meansBlock[2]),2); 
+                out.sdBlock[3] += pow((r(j,i).worldPos    - out.meansBlock[3]),2); 
+                out.sdBlock[4] += pow((r(j,i).directLight - out.meansBlock[4]),2); 
             }
         }
-        out.sdBlock[0] = sqrt(out.sdBlock[0]);
-        out.sdBlock[1] = sqrt(out.sdBlock[1]);
-        out.sdBlock[2] = sqrt(out.sdBlock[2]);
-        out.sdBlock[3] = sqrt(out.sdBlock[3]);
-        out.sdBlock[4] = sqrt(out.sdBlock[4]);
+        out.sdBlock[0] = sqrt(out.sdBlock[0] / 49.0f);
+        out.sdBlock[1] = sqrt(out.sdBlock[1] / 49.0f);
+        out.sdBlock[2] = sqrt(out.sdBlock[2] / 49.0f);
+        out.sdBlock[3] = sqrt(out.sdBlock[3] / 49.0f);
+        out.sdBlock[4] = sqrt(out.sdBlock[4] / 49.0f);
         // K Gradients (3x3 Block)
         // K Mean Deviations (3x3 block)
         for ( j = -1; j <= 1; j++) { 
@@ -800,7 +801,7 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
 
             // Adjust values
             for (int v = 0; v < 9; v++) {
-                valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[2]);
+                valuesForMAD[feature][v] = fabs(valuesForMAD[feature][v] - medianGetter[0]);
             }
 
             // Reset median getter
@@ -832,7 +833,7 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
                 }
             }
             // Final MAD value
-            out.MAD[feature] = medianGetter[2];
+            out.MAD[feature] = medianGetter[0];
         }
         // L
         out.L = 1.0f/constants.samples;
@@ -935,10 +936,10 @@ void DenoiserNN::SkePUForwardProp() {
         in[ind].worldPos    = (worldPos[ind].x   + worldPos[ind].y + worldPos[ind].z) / (3.0f * sampleCount);
         in[ind].directLight = directLight[ind].x / sampleCount;
 
-        pFeatures[ind].normal   = in[ind].normal;
-        pFeatures[ind].alb1     = in[ind].alb1;
-        pFeatures[ind].alb2     = in[ind].alb2;
-        pFeatures[ind].worldPos = in[ind].worldPos;
+        pFeatures[ind].normal      = in[ind].normal;
+        pFeatures[ind].alb1        = in[ind].alb1;
+        pFeatures[ind].alb2        = in[ind].alb2;
+        pFeatures[ind].worldPos    = in[ind].worldPos;
         pFeatures[ind].directLight = in[ind].directLight;
 
         in[ind].stdDev[0] = denoisingInf[ind].stdDev[0];
@@ -1423,21 +1424,27 @@ static SkePUBPOut SkePUBPFunc(SkePUBPIn f, int samples, float learningRate) {
 
                 // Weights One
                 for (w=0;w<360;w++){
+                    if (var==0)
+                        out.onetwo[w] = 0.0f;
                     // Derivative Three: filter/weight = secondary feature input at weight index
                     paramOverWeight = f.s[w % 36];
-                    out.onetwo[w] = learningRate*dot*paramOverWeight;
+                    out.onetwo[w] += learningRate*dot*paramOverWeight;
                 }
                 // Weights Two
                 for (w=0;w<100;w++){
+                    if (var==0)
+                        out.twothree[w] = 0.0f;
                     // Derivative Three: filter/weight = second layer value at weight index
                     paramOverWeight = f.l2[w % 10];
-                    out.twothree[w] = learningRate*dot*paramOverWeight;
+                    out.twothree[w] += learningRate*dot*paramOverWeight;
                 }
                 // Weights Three
                 for (w=0;w<70;w++){
+                    if (var==0)
+                        out.threefour[w] = 0.0f;
                     // Derivative Three: filter/weight = third layer value at weight index
                     paramOverWeight = f.l3[w % 10];
-                    out.threefour[w] = learningRate*dot*paramOverWeight;
+                    out.threefour[w] += learningRate*dot*paramOverWeight;
                 }
             }
 
@@ -1451,7 +1458,7 @@ void DenoiserNN::SkePUBackProp() {
     int c;
     for (int ind = 0; ind < xRes*yRes; ind++) {
 
-        for (c=0; c<7; c++) {
+        for (c=0; c<3; c++) {
             fIn[ind].preScreen[c]    = preScreen[ind][c];
             fIn[ind].normal[c]       = normal[ind][c];
             fIn[ind].alb1[c]         = albedo1[ind][c];
@@ -1463,7 +1470,7 @@ void DenoiserNN::SkePUBackProp() {
         fIn[ind].wcSum = denoisingInf[ind].wcSum;
 
         for (c=0; c<7; c++)
-             fIn[ind].variances[c] = denoisingInf[ind].variances[c];
+            fIn[ind].variances[c] = denoisingInf[ind].variances[c];
         for (c=0; c<6; c++)
             fIn[ind].stdDev[c] = denoisingInf[ind].stdDev[c];
     }
@@ -1484,9 +1491,9 @@ void DenoiserNN::SkePUBackProp() {
     auto bpOut = skepu::Matrix<SkePUBPOut>(yRes, xRes);
     for (int ind = 0; ind < xRes*yRes; ind++) {
 
-        for (c=0; c<7; c++) {
+        for (c=0; c<3; c++) {
             bpIn[ind].targetCol[c]    = targetCol[ind][c];
-            bpIn[ind].denoisedCol[c]       = denoisedCol[ind][c];
+            bpIn[ind].denoisedCol[c]  = denoisedCol[ind][c];
         }
         bpIn[ind].deriv = fOut[ind];
 
@@ -1515,11 +1522,6 @@ void DenoiserNN::SkePUBackProp() {
             threefour[c] += bpOut[ind].threefour[c];
     }
 }
-
-
-
-
-
 
 void DenoiserNN::GenRelMSE() {
 
@@ -1554,8 +1556,7 @@ void DenoiserNN::InitTraining() {
     // Create Training File
     std::ofstream oFile("ErrorLog.txt");
     if (oFile.is_open()) {
-        oFile << "Res: (" << xRes << "x" << yRes << "), Samples: " << samplesWhenTraining << ", L Rate: " << learningRate << std::endl;  
-        oFile << "Epoch RelMSE" << std::endl;
+        oFile << "Res: (" << xRes << "x" << yRes << ") Samples: " << samplesWhenTraining << " L Rate: " << learningRate << "," << std::endl;  
         oFile.close();
     }
 
@@ -1563,7 +1564,7 @@ void DenoiserNN::InitTraining() {
 void DenoiserNN::AppendTrainingFile() {
     std::ofstream oFile("ErrorLog.txt", std::ios_base::app);
     if (oFile.is_open()) {
-        oFile << trainingEpoch << " " << relMSE << std::endl;  
+        oFile << relMSE << "," << std::endl;  
         oFile.close();
     }
 }
@@ -1572,7 +1573,7 @@ void DenoiserNN::EndTraining() {
     training = false;
 
 	// Save Trained Weights
-	OutputWeights();
+	OutputWeights("NNWeights");
 }
 
 void DenoiserNN::TrainNN() {
@@ -1647,8 +1648,12 @@ void DenoiserNN::RandomizeWeights() {
     for (ind = 0; ind < 70; ind ++)
         threefour[ind] = RandBetween(-0.5, 0.5);
 }
-void DenoiserNN::OutputWeights() {
-    std::ofstream oFile("NNWeights.txt");
+void DenoiserNN::OutputWeights(std::string name) {
+    if (name.size()==0)
+        name = std::string("NNWeights");
+    name = std::string("../Weights/").append(name);
+    name.append(".txt");
+    std::ofstream oFile(name);
     if (oFile.is_open()) {
         int ind;
         for (ind = 0; ind < 360; ind ++)
@@ -1668,6 +1673,7 @@ void DenoiserNN::OutputWeights() {
 bool DenoiserNN::LoadWeights(std::string name) {
     if (name.size()==0)
         name = std::string("NNWeights");
+    name = std::string("../Weights/").append(name);
     name.append(".txt");
     std::ifstream rFile(name);
     std::string newLine;

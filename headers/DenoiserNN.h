@@ -168,7 +168,7 @@ public:
 
     void GenRelMSE();
     void RandomizeWeights();
-    void OutputWeights();
+    void OutputWeights(std::string name);
     bool LoadWeights(std::string name);
     void InitTraining();
     void EndTraining();

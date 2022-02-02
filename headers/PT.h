@@ -37,7 +37,7 @@ public:
 
     // ImGui Vars
     int objEdit, lRateInt;
-    char fileName[32], weightsName[32];
+    char fileName[32], weightsName[32], weightsNameSave[32];
     float resPerc, screenPerc;
     SDL_Window* sdlWindow;
 
