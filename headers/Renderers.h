@@ -12,6 +12,8 @@
 #include "Scene.h"
 #include <skepu>
 
+#include "CUDARender.h"
+
 #include <algorithm>
 
 using namespace std::chrono;

@@ -26,7 +26,11 @@
                 SkePUDenoise();
                 break;
             case 6:
+                if (skipCudaDenoise)
+                    denoisingSkePUBackend = "openmp";
                 SkePUDenoise();
+                if (skipCudaDenoise)
+                    denoisingSkePUBackend = "cuda";
                 break;
         }
 

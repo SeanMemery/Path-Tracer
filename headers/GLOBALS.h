@@ -18,6 +18,8 @@ extern std::string skepuBackend;
 extern float randSamp;
 extern double renderTime, denoiseTime, epochTime, totalTime;
 
+extern int rootThreadsPerBlock;
+
 // Post Processing 
 extern float exposure, g;
 extern int displayMetric;
@@ -26,7 +28,7 @@ extern int displayMetric;
 extern DenoiserNN denoiserNN;
 extern int denoisingN, trainingEpoch, denoisingBackend;
 extern std::string denoisingSkePUBackend;
-extern bool training, weightsLoaded;
+extern bool training, weightsLoaded, skipCudaDenoise;
 
 // Objects
 extern Scene scene;

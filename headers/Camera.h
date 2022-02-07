@@ -21,32 +21,34 @@ public:
 		refresh = true;
         switch (axis) {
 			case CamAxis::FORWARD:
-				//PTMath::QuaternionRotateAroundVector(forward, up, angle);
-				//right = up.cross(forward).normalize();
+				up -= right * 0.25f*speed*ImGui::GetIO().DeltaTime;
+				up.normalize();
+				right = up.cross(forward).normalize();
 				return;
 			case CamAxis::UP:
 				forward += right * 0.5f*speed*ImGui::GetIO().DeltaTime;
 				forward.normalize();
-				//PTMath::QuaternionRotateAroundVector(up, forward, angle);
 				right = up.cross(forward).normalize();
 				return;
 			case CamAxis::RIGHT:
-				//PTMath::QuaternionRotateAroundVector(up, right, angle);
-				//forward = right.cross(up).normalize();
+				forward += up * 0.5f*speed*ImGui::GetIO().DeltaTime;
+				forward.normalize();
+				up = forward.cross(right).normalize();
 				return;
 			case CamAxis::REVFORWARD:
-				//PTMath::QuaternionRotateAroundVector(forward, up, -angle);
-				//right = up.cross(forward).normalize();
+				up += right * 0.25f*speed*ImGui::GetIO().DeltaTime;
+				up.normalize();
+				right = up.cross(forward).normalize();
 				return;
 			case CamAxis::REVUP:
 				forward -= right * 0.5f*speed*ImGui::GetIO().DeltaTime;
 				forward.normalize();
-				//PTMath::QuaternionRotateAroundVector(up, forward, -angle);
 				right = up.cross(forward).normalize();
 				return;
 			case CamAxis::REVRIGHT:
-				//PTMath::QuaternionRotateAroundVector(up, right, -angle);
-				//forward = right.cross(up).normalize();
+				forward -= up * 0.5f*speed*ImGui::GetIO().DeltaTime;
+				forward.normalize();
+				up = forward.cross(right).normalize();
 				return;
 		}
     }

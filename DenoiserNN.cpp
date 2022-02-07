@@ -611,7 +611,7 @@ struct ForPropOut {
 
     float l2[10];
     float l3[10];
-    float variances[6];
+    float variances[7];
 
     // Secondary Features
     float meansSingle[5];
@@ -671,7 +671,7 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
             out.l2[c] = 0.0f;
             out.l3[c] = 0.0f;
         }     
-        for (c=0;c<10;c++) 
+        for (c=0;c<7;c++) 
             out.variances[c] = 0.0f;
         for (c=0; c<5; c++) {
             out.meansSingle[c] = 0.0f;
@@ -977,7 +977,7 @@ void DenoiserNN::SkePUForwardProp() {
                 layerTwoValues[10*ind + v] = ret.l2[v];
                 layerThreeValues[10*ind + v] = ret.l3[v];
             }
-            for (v = 0; v < 6;  v++)
+            for (v = 0; v < 7;  v++)
                 info->variances[v] = ret.variances[v];
             for (v = 0; v < 5; v++) {
                 s->meansSingle[v]   = ret.meansSingle[v];

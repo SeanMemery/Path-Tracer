@@ -2,8 +2,8 @@
 
     static ReturnStruct RenderFunc(skepu::Index2D ind, RandomSeeds seeds, Constants constants) {
         // Ray
-        double camPos[3] = {constants.camPos[0], constants.camPos[1], constants.camPos[2]};
-        double rayPos[3] = {camPos[0], camPos[1], camPos[2]};
+        float camPos[3] = {constants.camPos[0], constants.camPos[1], constants.camPos[2]};
+        float rayPos[3] = {camPos[0], camPos[1], camPos[2]};
 
         // Random seeds
         uint64_t randSeeds[2];
@@ -18,39 +18,42 @@
                 uint64_t s0 = randSeeds[0];
                 uint64_t s1 = randSeeds[1];
                 uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-                double one_two = ((uint64_t)1 << 63) * (double)2.0;
+                float one_two = ((uint64_t)1 << 63) * (float)2.0;
                 rSamps[n] = xorshiro / one_two;
                 s1 ^= s0;
                 randSeeds[0] = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
                 randSeeds[1] = (s1 << 28) | (s1 >> 36);
             }
+            rSamps[0] *= 2;rSamps[1] *= 2;
+            rSamps[0] -= 1;rSamps[1] -= 1;
+            rSamps[0] *= constants.randSamp;rSamps[1] *= constants.randSamp;
         }
-        rSamps[0] *= 2;rSamps[1] *= 2;
-        rSamps[0] -= 1;rSamps[1] -= 1;
-        rSamps[0] *= constants.randSamp;rSamps[1] *= constants.randSamp;
+
+
+        float back_col[3] = {constants.backgroundColour[0], constants.backgroundColour[1], constants.backgroundColour[2]};
 
         // Pixel Coord
-        double camForward[3] = {constants.camForward[0], constants.camForward[1], constants.camForward[2]};
-        double camRight[3] = {constants.camRight[0], constants.camRight[1], constants.camRight[2]};
+        float camForward[3] = {constants.camForward[0], constants.camForward[1], constants.camForward[2]};
+        float camRight[3] = {constants.camRight[0], constants.camRight[1], constants.camRight[2]};
 
-        double pY = -constants.maxAngleV + 2*constants.maxAngleV*((double)ind.row/(double)constants.RESV);
-        double pX = -constants.maxAngleH + 2*constants.maxAngleH*((double)ind.col/(double)constants.RESH);
+        float pY = -constants.maxAngleV + 2*constants.maxAngleV*((float)ind.row/(float)constants.RESV);
+        float pX = -constants.maxAngleH + 2*constants.maxAngleH*((float)ind.col/(float)constants.RESH);
 
-        double pix[3] = {0,0,0};
+        float pix[3] = {0,0,0};
         pix[0] = camPos[0] + constants.camForward[0]*constants.focalLength + constants.camRight[0]*(pX+rSamps[0]) + constants.camUp[0]*(pY+rSamps[1]);
         pix[1] = camPos[1] + constants.camForward[1]*constants.focalLength + constants.camRight[1]*(pX+rSamps[0]) + constants.camUp[1]*(pY+rSamps[1]);
         pix[2] = camPos[2] + constants.camForward[2]*constants.focalLength + constants.camRight[2]*(pX+rSamps[0]) + constants.camUp[2]*(pY+rSamps[1]);
 
-        double rayDir[3] = {pix[0]-camPos[0], pix[1]-camPos[1], pix[2]-camPos[2]};
-        double n1 = sqrt(rayDir[0]*rayDir[0] + rayDir[1]*rayDir[1] + rayDir[2]*rayDir[2]);
+        float rayDir[3] = {pix[0]-camPos[0], pix[1]-camPos[1], pix[2]-camPos[2]};
+        float n1 = sqrt(rayDir[0]*rayDir[0] + rayDir[1]*rayDir[1] + rayDir[2]*rayDir[2]);
         rayDir[0]/=n1;
         rayDir[1]/=n1;
         rayDir[2]/=n1;   
 
         // Store ray collisions and reverse through them (last num is shape index)
-        double rayPositions[12][4];
-        double normals[12][3];
-        double pdfVals[12];
+        float rayPositions[12][4];
+        float normals[12][3];
+        float pdfVals[12];
         // Shadow Rays: counts succesful shadow rays i.e. direct lighting, done for each bounce to provide more info
         int shadowRays[12];
         for (int v=0; v<12; v++){
@@ -76,11 +79,11 @@
 
         int numShapeHit = 0;
         int numRays = 0;
-        double dir[3] = {rayDir[0], rayDir[1], rayDir[2]};
+        float dir[3] = {rayDir[0], rayDir[1], rayDir[2]};
         for (int pos = 0; pos < constants.maxDepth; pos++) {
             numRays++;
             int shapeHit;
-            double prevPos[3];
+            float prevPos[3];
             if (pos > 0) {
                 prevPos[0] = rayPositions[pos-1][0];
                 prevPos[1] = rayPositions[pos-1][1];
@@ -90,43 +93,43 @@
                 prevPos[1] = camPos[1];
                 prevPos[2] = camPos[2];
             }
-            double posHit[3];
+            float posHit[3];
             bool hitAnything = false;
             int shapeTypeHit;
             // Collide with shapes, generating new dirs as needed (i.e. random or specular)
             {
 
-                double E = 0.00001f;
+                float E = 0.001f;
 
                 // Find shape
                 {
-                    double t = INFINITY;
+                    float t = INFINITY;
                     for (int ind = 0; ind < constants.numShapes; ind++) {
                         int shapeType = (int)constants.shapes[ind][7];
-                        double tempT = INFINITY;
+                        float tempT = INFINITY;
                         // ----- intersect shapes -----
                         // aabb
                         if ( shapeType == 0) {
                             int sign[3] = {dir[0] < 0, dir[1] < 0, dir[2] < 0};
-                            double bounds[2][3] = {{0,0,0}, {0,0,0}};
+                            float bounds[2][3] = {{0,0,0}, {0,0,0}};
                             bounds[0][0] = constants.shapes[ind][8];
                             bounds[0][1] = constants.shapes[ind][9];
                             bounds[0][2] = constants.shapes[ind][10];
                             bounds[1][0] = constants.shapes[ind][11];
                             bounds[1][1] = constants.shapes[ind][12];
                             bounds[1][2] = constants.shapes[ind][13];
-                            double tmin = (bounds[sign[0]][0] - prevPos[0]) / dir[0];
-                            double tmax = (bounds[1 - sign[0]][0] - prevPos[0]) / dir[0];
-                            double tymin = (bounds[sign[1]][1] - prevPos[1]) / dir[1];
-                            double tymax = (bounds[1 - sign[1]][1] - prevPos[1]) / dir[1];
+                            float tmin = (bounds[sign[0]][0] - prevPos[0]) / dir[0];
+                            float tmax = (bounds[1 - sign[0]][0] - prevPos[0]) / dir[0];
+                            float tymin = (bounds[sign[1]][1] - prevPos[1]) / dir[1];
+                            float tymax = (bounds[1 - sign[1]][1] - prevPos[1]) / dir[1];
                             if ((tmin > tymax) || (tymin > tmax))
                                 continue;
                             if (tymin > tmin)
                                 tmin = tymin;
                             if (tymax < tmax)
                                 tmax = tymax;
-                            double tzmin = (bounds[sign[2]][2] - prevPos[2]) / dir[2];
-                            double tzmax = (bounds[1 - sign[2]][2] - prevPos[2]) / dir[2];
+                            float tzmin = (bounds[sign[2]][2] - prevPos[2]) / dir[2];
+                            float tzmax = (bounds[1 - sign[2]][2] - prevPos[2]) / dir[2];
                             if ((tmin > tzmax) || (tzmin > tmax))
                                 continue;
                             if (tzmin > tmin)
@@ -143,20 +146,20 @@
                         }
                         // sphere
                         else if (shapeType == 1) {
-                            double L[3] = {0,0,0};
+                            float L[3] = {0,0,0};
                             L[0] = constants.shapes[ind][0] - prevPos[0];
                             L[1] = constants.shapes[ind][1] - prevPos[1];
                             L[2] = constants.shapes[ind][2] - prevPos[2];
-                            double tca = L[0]*dir[0] + L[1]*dir[1] + L[2]*dir[2];
+                            float tca = L[0]*dir[0] + L[1]*dir[1] + L[2]*dir[2];
                             if (tca < E)
                                 continue;
-                            double dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
-                            double radiusSq = constants.shapes[ind][8] * constants.shapes[ind][8];
+                            float dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
+                            float radiusSq = constants.shapes[ind][8] * constants.shapes[ind][8];
                             if (radiusSq - dsq < E)
                                 continue;
-                            double thc = sqrt(radiusSq - dsq);
-                            double t0 = tca - thc;
-                            double t1 = tca + thc;
+                            float thc = sqrt(radiusSq - dsq);
+                            float t0 = tca - thc;
+                            float t1 = tca + thc;
                             // Check times are positive, but use E for floating point accuracy
                             if (t0 > E)
                                 tempT = t0;
@@ -182,7 +185,7 @@
                     // Get Normal
                     {
                         if (shapeTypeHit == 0) {
-                            double bounds[2][3] = {{0,0,0}, {0,0,0}};
+                            float bounds[2][3] = {{0,0,0}, {0,0,0}};
                             bounds[0][0] = constants.shapes[shapeHit][8];
                             bounds[0][1] = constants.shapes[shapeHit][9];
                             bounds[0][2] = constants.shapes[shapeHit][10];
@@ -221,7 +224,7 @@
                             normals[pos][0] = posHit[0] - constants.shapes[shapeHit][0];
                             normals[pos][1] = posHit[1] - constants.shapes[shapeHit][1];
                             normals[pos][2] = posHit[2] - constants.shapes[shapeHit][2];
-                            double n = sqrt(normals[pos][0]*normals[pos][0] +
+                            float n = sqrt(normals[pos][0]*normals[pos][0] +
                                         normals[pos][1]*normals[pos][1] + 
                                         normals[pos][2]*normals[pos][2]);
                             normals[pos][0] /= n;
@@ -234,22 +237,22 @@
                     {
 
                         // Random Dir Generation
-                            double randDir[3];
-                            double rands[5];
+                            float randDir[3];
+                            float rands[5];
                             {
                                 // Rand vals
                                 for (int n = 0; n < 5; n++) {
                                     uint64_t s0 = randSeeds[0];
                                     uint64_t s1 = randSeeds[1];
                                     uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-                                    double one_two = ((uint64_t)1 << 63) * (double)2.0;
+                                    float one_two = ((uint64_t)1 << 63) * (float)2.0;
                                     rands[n] =  xorshiro / one_two;
                                     s1 ^= s0;
                                     randSeeds[0] = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
                                     randSeeds[1] = (s1 << 28) | (s1 >> 36);
                                 }
 
-                                double axis[3][3] = {{0,0,0}, {0,0,0}, {0,0,0}};
+                                float axis[3][3] = {{0,0,0}, {0,0,0}, {0,0,0}};
                                 // 2
                                 // axis[2] = normal
                                 axis[2][0] = normals[pos][0];
@@ -266,7 +269,7 @@
                                     axis[1][1] = axis[2][2];
                                     axis[1][2] = -axis[2][1];
                                 }
-                                double n = sqrt(axis[1][0]*axis[1][0] + axis[1][1]*axis[1][1] + axis[1][2]*axis[1][2]);
+                                float n = sqrt(axis[1][0]*axis[1][0] + axis[1][1]*axis[1][1] + axis[1][2]*axis[1][2]);
                                 axis[1][0] /= n; axis[1][1] /= n; axis[1][2] /= n;
                                 // 0
                                 // axis[0] = cross(axis[2], axis[1])
@@ -274,10 +277,10 @@
                                 axis[0][1] = axis[2][2]*axis[1][0] - axis[2][0]*axis[1][2];
                                 axis[0][2] = axis[2][0]*axis[1][1] - axis[2][1]*axis[1][0];
                                 // rand dir
-                                double phi = 2.0 * M_PI * rands[0];
-                                double x = cos(phi) * sqrt(rands[1]);
-                                double y = sin(phi) * sqrt(rands[1]);
-                                double z = sqrt(1 - rands[1]);
+                                float phi = 2.0 * M_PI * rands[0];
+                                float x = cos(phi) * sqrt(rands[1]);
+                                float y = sin(phi) * sqrt(rands[1]);
+                                float z = sqrt(1 - rands[1]);
 
                                 randDir[0] = x * axis[0][0] + y * axis[1][0] + z * axis[2][0];
                                 randDir[1] = x * axis[0][1] + y * axis[1][1] + z * axis[2][1];
@@ -301,11 +304,11 @@
                         if (constants.shapes[shapeHit][6] == 3) {
                             // Dielectric Material
                             shadowRays[pos] = 1;
-                            double blur = constants.shapes[shapeHit][14];
-                            double RI = 1.0 / constants.shapes[shapeHit][15];
-                            double dirIn[3] = {dir[0], dir[1], dir[2]};
-                            double refNorm[3] = {normals[pos][0], normals[pos][1], normals[pos][2]};
-                            double cosi = dirIn[0]*refNorm[0] + dirIn[1]*refNorm[1] + dirIn[2]*refNorm[2];
+                            float blur = constants.shapes[shapeHit][14];
+                            float RI = 1.0 / constants.shapes[shapeHit][15];
+                            float dirIn[3] = {dir[0], dir[1], dir[2]};
+                            float refNorm[3] = {normals[pos][0], normals[pos][1], normals[pos][2]};
+                            float cosi = dirIn[0]*refNorm[0] + dirIn[1]*refNorm[1] + dirIn[2]*refNorm[2];
 
                             // If normal is same direction as ray, then flip
                             if (cosi > 0) {
@@ -317,37 +320,37 @@
                             }
 
                             // Can refract check
-                            double sinSq = RI*RI*(1-cosi*cosi);
+                            float sinSq = RI*RI*(1-cosi*cosi);
                             bool canRefract = 1 - sinSq > 0;
                             
                             // Schlick approx
-                            double r0 = (1.0 - RI) / (1.0 + RI);
+                            float r0 = (1.0 - RI) / (1.0 + RI);
                             r0 = r0 * r0;
-                            double schlick = r0 + (1.0 - r0) * pow((1.0 - cosi), 5.0);
+                            float schlick = r0 + (1.0 - r0) * pow((1.0 - cosi), 5.0);
 
                             if (!canRefract){//} || schlick > rands[2]) {
                                 dir[0] = dirIn[0] - 2*cosi*refNorm[0] + blur*randDir[0];
                                 dir[1] = dirIn[1] - 2*cosi*refNorm[1] + blur*randDir[1];
                                 dir[2] = dirIn[2] - 2*cosi*refNorm[2] + blur*randDir[2];
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
-                                double cosine2 = normals[pos][0] * dir[0] + 
+                                float cosine2 = normals[pos][0] * dir[0] + 
                                                 normals[pos][1] * dir[1] + 
                                                 normals[pos][2] * dir[2];
                                 pdfVals[pos] = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;
                             }
                             else {
 
-                                double refCalc = RI*cosi - sqrt(1-sinSq);
+                                float refCalc = RI*cosi - sqrt(1-sinSq);
                                 dir[0] = RI*dirIn[0] + refCalc*refNorm[0] + blur*randDir[0];
                                 dir[1] = RI*dirIn[1] + refCalc*refNorm[1] + blur*randDir[1];
                                 dir[2] = RI*dirIn[2] + refCalc*refNorm[2] + blur*randDir[2];
 
-                                double length = sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
+                                float length = sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
                                 dir[0]/=length;dir[1]/=length;dir[2]/=length;
 
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
                                 // Danger here, scattering pdf was going to 0 for refracting and making colour explode
-                                double cosine2 = normals[pos][0] * dir[0] + 
+                                float cosine2 = normals[pos][0] * dir[0] + 
                                                 normals[pos][1] * dir[1] + 
                                                 normals[pos][2] * dir[2];
                                 pdfVals[pos] = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;					
@@ -357,10 +360,10 @@
                             // Metal material
                             shadowRays[pos] = 1;
 
-                            double dirIn[3] = {dir[0], dir[1], dir[2]};
-                            double blur = constants.shapes[shapeHit][14];
+                            float dirIn[3] = {dir[0], dir[1], dir[2]};
+                            float blur = constants.shapes[shapeHit][14];
 
-                            double prevDirNormalDot = dirIn[0]*normals[pos][0] + 
+                            float prevDirNormalDot = dirIn[0]*normals[pos][0] + 
                                                     dirIn[1]*normals[pos][1] + 
                                                     dirIn[2]*normals[pos][2];
 
@@ -368,7 +371,7 @@
                             dir[1] = dirIn[1] - 2*prevDirNormalDot*normals[pos][1] + blur*randDir[1];
                             dir[2] = dirIn[2] - 2*prevDirNormalDot*normals[pos][2] + blur*randDir[2];
 
-                            double cosine2 = normals[pos][0] * dir[0] + 
+                            float cosine2 = normals[pos][0] * dir[0] + 
                                             normals[pos][1] * dir[1] + 
                                             normals[pos][2] * dir[2];
 
@@ -407,20 +410,20 @@
                             // Calculate PDF val
                             if (mixPdf) {
                                 // 0
-                                double p0 = 1 / M_PI;
+                                float p0 = 1 / M_PI;
                                 int choosePdf = rands[4] > 0.65f ? 1 : 0;
                                 // dot(randomly generated dir, ray dir) / PI
                                 if (choosePdf == 1) {
                                     // Generate dir towards importance shape
-                                    double randPos[3] = {0,0,0};
+                                    float randPos[3] = {0,0,0};
                                     if (constants.shapes[impShape][7] == 0) {
                                         // Gen three new random variables : [0, 1]
-                                        double aabbRands[3];
+                                        float aabbRands[3];
                                         for (int n = 0; n < 3; n++) {
                                             uint64_t s0 = randSeeds[0];
                                             uint64_t s1 = randSeeds[1];
                                             uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-                                            double one_two = ((uint64_t)1 << 63) * (double)2.0;
+                                            float one_two = ((uint64_t)1 << 63) * (float)2.0;
                                             aabbRands[n] =  xorshiro / one_two;
                                             s1 ^= s0;
                                             randSeeds[0] = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
@@ -432,18 +435,18 @@
                                     } 
                                     else if (constants.shapes[impShape][7] == 1) {
                                         // Gen three new random variables : [-1, 1]
-                                        double sphereRands[3];
+                                        float sphereRands[3];
                                         for (int n = 0; n < 3; n++) {
                                             uint64_t s0 = randSeeds[0];
                                             uint64_t s1 = randSeeds[1];
                                             uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-                                            double one_two = ((uint64_t)1 << 63) * (double)2.0;
+                                            float one_two = ((uint64_t)1 << 63) * (float)2.0;
                                             sphereRands[n] =  (xorshiro / one_two)*2.0f - 1.0f;
                                             s1 ^= s0;
                                             randSeeds[0] = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
                                             randSeeds[1] = (s1 << 28) | (s1 >> 36);
                                         }
-                                        double sphereN = sqrt(sphereRands[0]*sphereRands[0] + 
+                                        float sphereN = sqrt(sphereRands[0]*sphereRands[0] + 
                                                             sphereRands[1]*sphereRands[1] + 
                                                             sphereRands[2]*sphereRands[2]);
                                         sphereRands[0] /= sphereN; sphereRands[1] /= sphereN; sphereRands[2] /= sphereN;
@@ -456,44 +459,42 @@
                                     directDir[0] = randPos[0] - posHit[0];
                                     directDir[1] = randPos[1] - posHit[1];
                                     directDir[2] = randPos[2] - posHit[2];
-                                    double dirLen = sqrt(directDir[0]*directDir[0] + directDir[1]*directDir[1] + directDir[2]*directDir[2]);
+                                    float dirLen = sqrt(directDir[0]*directDir[0] + directDir[1]*directDir[1] + directDir[2]*directDir[2]);
                                     directDir[0] /= dirLen; directDir[1] /= dirLen; directDir[2] /= dirLen;  
 
                                     //
                                     // Shadow Ray
                                     // Need to send shadow ray to see if point is in path of direct light
-                                    double t = INFINITY;
                                     bool shadowRayHit = false;
 
                                     for (int ind = 0; ind < constants.numShapes; ind++) {
                                         if (ind == impShape)
                                             continue;
-                                        numRays++;
                                         int shapeType = (int)constants.shapes[ind][7];
-                                        double tempT = INFINITY;
+                                        float tempT = INFINITY;
                                         // ----- intersect shapes -----
                                         // aabb
                                         if ( shapeType == 0) {
-                                            int sign[3] = {directDir[0] < 0, directDir[1] < 0, directDir[2] < 0};
-                                            double bounds[2][3] = {{0,0,0}, {0,0,0}};
+                                            int sign[3] = {dir[0] < 0, dir[1] < 0, dir[2] < 0};
+                                            float bounds[2][3];
                                             bounds[0][0] = constants.shapes[ind][8];
                                             bounds[0][1] = constants.shapes[ind][9];
                                             bounds[0][2] = constants.shapes[ind][10];
                                             bounds[1][0] = constants.shapes[ind][11];
                                             bounds[1][1] = constants.shapes[ind][12];
                                             bounds[1][2] = constants.shapes[ind][13];
-                                            double tmin = (bounds[sign[0]][0] - posHit[0]) / directDir[0];
-                                            double tmax = (bounds[1 - sign[0]][0] - posHit[0]) / directDir[0];
-                                            double tymin = (bounds[sign[1]][1] - posHit[1]) / directDir[1];
-                                            double tymax = (bounds[1 - sign[1]][1] - posHit[1]) / directDir[1];
+                                            float tmin = (bounds[sign[0]][0] - posHit[0]) / dir[0];
+                                            float tmax = (bounds[1 - sign[0]][0] - posHit[0]) / dir[0];
+                                            float tymin = (bounds[sign[1]][1] - posHit[1]) / dir[1];
+                                            float tymax = (bounds[1 - sign[1]][1] - posHit[1]) / dir[1];
                                             if ((tmin > tymax) || (tymin > tmax))
                                                 continue;
                                             if (tymin > tmin)
                                                 tmin = tymin;
                                             if (tymax < tmax)
                                                 tmax = tymax;
-                                            double tzmin = (bounds[sign[2]][2] - posHit[2]) / directDir[2];
-                                            double tzmax = (bounds[1 - sign[2]][2] - posHit[2]) / directDir[2];
+                                            float tzmin = (bounds[sign[2]][2] - posHit[2]) / dir[2];
+                                            float tzmax = (bounds[1 - sign[2]][2] - posHit[2]) / dir[2];
                                             if ((tmin > tzmax) || (tzmin > tmax))
                                                 continue;
                                             if (tzmin > tmin)
@@ -505,20 +506,20 @@
                                         }
                                         // sphere
                                         else if (shapeType == 1) {
-                                            double L[3] = {0,0,0};
+                                            float L[3];
                                             L[0] = constants.shapes[ind][0] - posHit[0];
                                             L[1] = constants.shapes[ind][1] - posHit[1];
                                             L[2] = constants.shapes[ind][2] - posHit[2];
-                                            double tca = L[0]*directDir[0] + L[1]*directDir[1] + L[2]*directDir[2];
+                                            float tca = L[0]*dir[0] + L[1]*dir[1] + L[2]*dir[2];
                                             if (tca < E)
                                                 continue;
-                                            double dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
-                                            double radiusSq = constants.shapes[ind][8] * constants.shapes[ind][8];
+                                            float dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
+                                            float radiusSq = constants.shapes[ind][8] * constants.shapes[ind][8];
                                             if (radiusSq - dsq < E)
                                                 continue;
-                                            double thc = sqrt(radiusSq - dsq);
-                                            double t0 = tca - thc;
-                                            double t1 = tca + thc;
+                                            float thc = sqrt(radiusSq - dsq);
+                                            float t0 = tca - thc;
+                                            float t1 = tca + thc;
                                             // Check times are positive, but use E for floating point accuracy
                                             tempT = t0 > E ? t0 : (t1 > E ? t1 : INFINITY); 
                                         }
@@ -527,39 +528,39 @@
                                             break;
                                         }
                                     }
-                                    // Shadow Ray
-                                    //
-                                    //
 
                                     if (!shadowRayHit) {
-
-                                        double cosine = fabs(directDir[0]*randDir[0] + directDir[1]*randDir[1] + directDir[2]*randDir[2]);
+                                        float cosine = fabs(directDir[0]*randDir[0] +directDir[1]*randDir[1] +directDir[2]*randDir[2]);
                                         if (cosine < 0.01) {
                                             p0 = 1 / M_PI;
                                         }
                                         else {
-
                                             shadowRays[pos]=1; 
-
                                             dir[0] = directDir[0];
                                             dir[1] = directDir[1];
                                             dir[2] = directDir[2];
                                             p0 = fabs(cosine) / M_PI;
                                         }
+
                                     }
+                                    // Shadow Ray
+                                    //
+                                    //
+
+
                                 }
                                 // 1
-                                double p1 = 0;
+                                float p1 = 0;
                                 if (constants.shapes[impShape][7] == 0) {
                                     // AABB pdf val
-                                    double areaSum = 0;
-                                    double xDiff = constants.shapes[impShape][11] - constants.shapes[impShape][8];
-                                    double yDiff = constants.shapes[impShape][12] - constants.shapes[impShape][9];
-                                    double zDiff = constants.shapes[impShape][13] - constants.shapes[impShape][10];
+                                    float areaSum = 0;
+                                    float xDiff = constants.shapes[impShape][11] - constants.shapes[impShape][8];
+                                    float yDiff = constants.shapes[impShape][12] - constants.shapes[impShape][9];
+                                    float zDiff = constants.shapes[impShape][13] - constants.shapes[impShape][10];
                                     areaSum += xDiff * yDiff * 2.0f;
                                     areaSum += zDiff * yDiff * 2.0f;
                                     areaSum += xDiff * zDiff * 2.0f;
-                                    double cosine = dir[0]*normals[pos][0] + 
+                                    float cosine = dir[0]*normals[pos][0] + 
                                                     dir[1]*normals[pos][1] + 
                                                     dir[2]*normals[pos][2];
                                     cosine = cosine < 0.0001f ? 0.0001f : cosine;
@@ -568,7 +569,7 @@
                                     diff[0] = constants.shapes[impShape][0] - posHit[0];
                                     diff[1] = constants.shapes[impShape][1] - posHit[1];
                                     diff[2] = constants.shapes[impShape][2] - posHit[2];
-                                    double dirLen = sqrt(diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]);
+                                    float dirLen = sqrt(diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]);
 
 
                                     // AABB needs magic number for pdf calc, TODO: LOOK INTO, was too bright before
@@ -577,7 +578,7 @@
 
                                 } else if (constants.shapes[impShape][7] == 1) {
                                     // Sphere pdf val
-                                    double diff[3] = {constants.shapes[impShape][0]-posHit[0], 
+                                    float diff[3] = {constants.shapes[impShape][0]-posHit[0], 
                                                     constants.shapes[impShape][1]-posHit[1], 
                                                     constants.shapes[impShape][2]-posHit[2]};
                                     auto distance_squared = diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2];
@@ -603,35 +604,38 @@
                     rayPositions[pos][3] = shapeHit;
 
                 } else {
+                    back_col[0] = 0.1f;
+                    back_col[1] = 0.1f;
+                    back_col[2] = (dir[1] + 1.0f)/2.2f + 0.1f;
                     break;
                 }
             }
         }
 
-        double finalCol[3] = {constants.backgroundColour[0], 
-                            constants.backgroundColour[1], 
-                            constants.backgroundColour[2]};
+        float finalCol[3] = {back_col[0], 
+                            back_col[1], 
+                            back_col[2]};
 
         // Reverse through hit points and add up colour
         for (int pos = numShapeHit-1; pos >=0; pos--) {
 
             int shapeHit = (int)rayPositions[pos][3];
 
-            double albedo[3] = {constants.shapes[shapeHit][3], 
+            float albedo[3] = {constants.shapes[shapeHit][3], 
                                 constants.shapes[shapeHit][4], 
                                 constants.shapes[shapeHit][5]};
             int matType = (int)constants.shapes[shapeHit][6];	
             int shapeType = (int)constants.shapes[shapeHit][7];
         
-            double normal[3] = {normals[pos][0], normals[pos][1], normals[pos][2]};
+            float normal[3] = {normals[pos][0], normals[pos][1], normals[pos][2]};
 
-            double newDir[3];
+            float newDir[3];
             newDir[0] = pos == numShapeHit-1 ? dir[0] : rayPositions[pos + 1][0] - rayPositions[pos][0];
             newDir[1] = pos == numShapeHit-1 ? dir[1] : rayPositions[pos + 1][1] - rayPositions[pos][1];
             newDir[2] = pos == numShapeHit-1 ? dir[2] : rayPositions[pos + 1][2] - rayPositions[pos][2];
             if (pos < numShapeHit-1) {
 
-                double l2 = sqrt((newDir[0])*(newDir[0]) + 
+                float l2 = sqrt((newDir[0])*(newDir[0]) + 
                                 (newDir[1])*(newDir[1]) + 
                                 (newDir[2])*(newDir[2]));
                 newDir[0] /= l2;
@@ -639,25 +643,25 @@
                 newDir[2] /= l2;
             }
 
-            double emittance[3];
+            float emittance[3];
             emittance[0] = matType == 1 ? albedo[0] : 0;
             emittance[1] = matType == 1 ? albedo[1] : 0;
             emittance[2] = matType == 1 ? albedo[2] : 0;
 
-            double pdf_val = pdfVals[pos]; 
+            float pdf_val = pdfVals[pos]; 
 
-            double cosine2 = normal[0] * newDir[0] + 
+            float cosine2 = normal[0] * newDir[0] + 
                             normal[1] * newDir[1] + 
                             normal[2] * newDir[2];
 
-            double scattering_pdf = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;// just cosine/pi for lambertian
-            double multVecs[3] = {albedo[0]*finalCol[0],   // albedo*incoming 
-                                albedo[1]*finalCol[1],  
-                                albedo[2]*finalCol[2]}; 
+            float scattering_pdf = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;// just cosine/pi for lambertian
+            float multVecs[3] = {albedo[0]*finalCol[0],   // albedo*incoming 
+                                  albedo[1]*finalCol[1],  
+                                  albedo[2]*finalCol[2]}; 
 
-            double directLightMult = shadowRays[pos]==1 && constants.numImportantShapes>1 ? constants.numImportantShapes>1 : 1;
+            float directLightMult = shadowRays[pos]==1 && constants.numImportantShapes>1 ? constants.numImportantShapes : 1;
 
-            double pdfs = scattering_pdf / pdf_val;
+            float pdfs = scattering_pdf / pdf_val;
             finalCol[0] = emittance[0] + multVecs[0] * pdfs * directLightMult;
             finalCol[1] = emittance[1] + multVecs[1] * pdfs * directLightMult;
             finalCol[2] = emittance[2] + multVecs[2] * pdfs * directLightMult;
@@ -686,7 +690,7 @@
         ret.raysSent = numRays;
         return ret;
     }
-    
+
     void Renderers::CPURender() {
 
         ReturnStruct ret;
@@ -829,7 +833,7 @@
 		}  
     }
     void Renderers::CUDARender() {
-
+        CUDARender::render();
     }
     void Renderers::OpenGLRender() {
 

@@ -4,7 +4,7 @@ int xRes, yRes, xScreen, yScreen, maxDepth, currentRenderer, rayCount, sampleCou
 bool denoising, moving, quit, rendering, refresh;
 unsigned int mainTexture; 
 float exposure, g, randSamp;
-int displayMetric;
+int displayMetric, rootThreadsPerBlock;
 std::string skepuBackend;
 double renderTime, denoiseTime, epochTime, totalTime;
 
@@ -18,7 +18,7 @@ Renderers renderer;
 DenoiserNN denoiserNN;
 int denoisingN, trainingEpoch, denoisingBackend;
 std::string denoisingSkePUBackend;
-bool training, weightsLoaded;
+bool training, weightsLoaded, skipCudaDenoise;
 float* layerTwoValues; 
 float* layerThreeValues;
 
@@ -63,7 +63,7 @@ PT::PT() :
     cam.hfov = 120;
     cam.vfov = 90;
 
-    exposure = 1.3f;
+    exposure = 1.0f;
     g = 1.3f;
     objEdit = 0;
     displayMetric = 0;
@@ -71,6 +71,7 @@ PT::PT() :
     maxDepth = 4;
     lRateInt = 6;
     randSamp = 0.005f;
+    rootThreadsPerBlock = 16;
 
     scene = Scene();
     scene.InitScene();
@@ -89,12 +90,10 @@ void PT::RenderLoop() {
         ProcessInput();
         ImGui();
 
-        if (refresh) {
-            RefreshScreen();
-        }
-
-        if (rendering) 
+        if (rendering) {
+            if (refresh) {RefreshScreen();}
             renderer.Render();
+        }
         else if (training)
             denoiserNN.TrainNN();
 
@@ -276,6 +275,15 @@ void PT::ImGui() {
                 break;
             case 2:
                 ImGui::Text("CUDA");
+                ImGui::Text("Root Threads Per Block: %d", rootThreadsPerBlock);
+                if (ImGui::Button("Incr rTHB")) {
+                    rootThreadsPerBlock += 2;
+                    refresh = true;
+                }
+                if (ImGui::Button("Decr rTHB") && rootThreadsPerBlock > 2) {
+                    rootThreadsPerBlock -= 2;
+                    refresh = true;
+                }
                 break;
             case 3:
                 ImGui::Text("OpenGL");
@@ -380,6 +388,7 @@ void PT::ImGui() {
                     case 6:
                         ImGui::Text("SkePU CUDA");
                         denoisingSkePUBackend = "cuda";
+                        ImGui::Checkbox("Skip CUDA Denoise", &skipCudaDenoise);
                         break;
                 }
 

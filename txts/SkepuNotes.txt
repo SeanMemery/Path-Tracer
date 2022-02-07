@@ -10,8 +10,16 @@
     - This leads to large value causing a weight value of 0, ruining the whole sum
     - causes a weight value of 1 only at the origin pixel, leading to an unchanged filtered image
     - FIX: have removed worlPosStdDev from weight calc, now variance val should change accordingly, REMEMBER THIS
+    - REALFIX: Have introduced slight random sampling that improves stdDev values, fixes issue 
 
 4. Going to try add a new variance value, i.e. ML calculated value. This will be a brightness setting for the pixel, as its quite difficult to directly brighten the pixels i feel, ill see how it goes
     - FAILURE: seems to only change brightness of screen, very weird
 
 5. Done some strange things to light sampling to make it look more even with indirect lighting, basically jut threw in the distance to shape TODO FIX!!!
+
+6. Very strange issue with direct light. Image looks a lot better when sampling (i think) incorrectly, i was accidentely using the rand dir to send shadow rays
+    instead of the direct direction, which causes the images to be dar too bright. So,
+    - Shadow ray sent along rand dir until reaching distance light is away from ray origin
+    - if hit something that isnt the light, then carry on that direction
+    - if hit nothing or hit light then change direction towards light
+    - makes no sense !!!! 
