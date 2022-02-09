@@ -600,42 +600,7 @@ void DenoiserNN::OMPForwardProp() {
     }      
 
 }
-struct ForPropIn {
-
-    float normal;
-    float alb1;
-    float alb2;
-    float worldPos;
-    float directLight;
-    float stdDev[6];
-
-};
-struct ForPropOut {
-
-    float l2[10];
-    float l3[10];
-    float variances[7];
-
-    // Secondary Features
-    float meansSingle[5];
-    float sdSingle[5];
-    float meansBlock[5];
-    float sdBlock[5];
-    float gradients[5];
-    float meanDeviation[5];
-    float MAD[5];
-    float L;
-
-};
-struct SkePUFPConstants {
-
-    int samples;
-    float onetwo[360];
-    float twothree[100];
-    float threefour[70];
-
-};
-static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants constants) {
+static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants sConstants) {
 
 
     // Secondary Features
@@ -839,7 +804,7 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
             out.MAD[feature] = medianGetter[0];
         }
         // L
-        out.L = 1.0f/constants.samples;
+        out.L = 1.0f/sConstants.samples;
 
     }
     
@@ -853,42 +818,42 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
 
             // Go through all secondary features
             {
-                out.l2[node] += out.meansSingle[0]   * constants.onetwo[36*node + 0]; 
-                out.l2[node] += out.meansSingle[1]   * constants.onetwo[36*node + 1]; 
-                out.l2[node] += out.meansSingle[2]   * constants.onetwo[36*node + 2]; 
-                out.l2[node] += out.meansSingle[3]   * constants.onetwo[36*node + 3]; 
-                out.l2[node] += out.meansSingle[4]   * constants.onetwo[36*node + 4]; 
-                out.l2[node] += out.sdSingle[0]      * constants.onetwo[36*node + 5];
-                out.l2[node] += out.sdSingle[1]      * constants.onetwo[36*node + 6];
-                out.l2[node] += out.sdSingle[2]      * constants.onetwo[36*node + 7];
-                out.l2[node] += out.sdSingle[3]      * constants.onetwo[36*node + 8];
-                out.l2[node] += out.sdSingle[4]      * constants.onetwo[36*node + 9];
-                out.l2[node] += out.meansBlock[0]    * constants.onetwo[36*node + 10];
-                out.l2[node] += out.meansBlock[1]    * constants.onetwo[36*node + 11];
-                out.l2[node] += out.meansBlock[2]    * constants.onetwo[36*node + 12];
-                out.l2[node] += out.meansBlock[3]    * constants.onetwo[36*node + 13];
-                out.l2[node] += out.meansBlock[4]    * constants.onetwo[36*node + 14];
-                out.l2[node] += out.sdBlock[0]       * constants.onetwo[36*node + 15];
-                out.l2[node] += out.sdBlock[1]       * constants.onetwo[36*node + 16];
-                out.l2[node] += out.sdBlock[2]       * constants.onetwo[36*node + 17];
-                out.l2[node] += out.sdBlock[3]       * constants.onetwo[36*node + 18];
-                out.l2[node] += out.sdBlock[4]       * constants.onetwo[36*node + 19];
-                out.l2[node] += out.gradients[0]     * constants.onetwo[36*node + 20];
-                out.l2[node] += out.gradients[1]     * constants.onetwo[36*node + 21];
-                out.l2[node] += out.gradients[2]     * constants.onetwo[36*node + 22];
-                out.l2[node] += out.gradients[3]     * constants.onetwo[36*node + 23];
-                out.l2[node] += out.gradients[4]     * constants.onetwo[36*node + 24];
-                out.l2[node] += out.meanDeviation[0] * constants.onetwo[36*node + 25];
-                out.l2[node] += out.meanDeviation[1] * constants.onetwo[36*node + 26];
-                out.l2[node] += out.meanDeviation[2] * constants.onetwo[36*node + 27];
-                out.l2[node] += out.meanDeviation[3] * constants.onetwo[36*node + 28];
-                out.l2[node] += out.meanDeviation[4] * constants.onetwo[36*node + 29];
-                out.l2[node] += out.MAD[0]           * constants.onetwo[36*node + 30];
-                out.l2[node] += out.MAD[1]           * constants.onetwo[36*node + 31];
-                out.l2[node] += out.MAD[2]           * constants.onetwo[36*node + 32];
-                out.l2[node] += out.MAD[3]           * constants.onetwo[36*node + 33];
-                out.l2[node] += out.MAD[4]           * constants.onetwo[36*node + 34];
-                out.l2[node] += out.L                * constants.onetwo[36*node + 35];
+                out.l2[node] += out.meansSingle[0]   * sConstants.onetwo[36*node + 0]; 
+                out.l2[node] += out.meansSingle[1]   * sConstants.onetwo[36*node + 1]; 
+                out.l2[node] += out.meansSingle[2]   * sConstants.onetwo[36*node + 2]; 
+                out.l2[node] += out.meansSingle[3]   * sConstants.onetwo[36*node + 3]; 
+                out.l2[node] += out.meansSingle[4]   * sConstants.onetwo[36*node + 4]; 
+                out.l2[node] += out.sdSingle[0]      * sConstants.onetwo[36*node + 5];
+                out.l2[node] += out.sdSingle[1]      * sConstants.onetwo[36*node + 6];
+                out.l2[node] += out.sdSingle[2]      * sConstants.onetwo[36*node + 7];
+                out.l2[node] += out.sdSingle[3]      * sConstants.onetwo[36*node + 8];
+                out.l2[node] += out.sdSingle[4]      * sConstants.onetwo[36*node + 9];
+                out.l2[node] += out.meansBlock[0]    * sConstants.onetwo[36*node + 10];
+                out.l2[node] += out.meansBlock[1]    * sConstants.onetwo[36*node + 11];
+                out.l2[node] += out.meansBlock[2]    * sConstants.onetwo[36*node + 12];
+                out.l2[node] += out.meansBlock[3]    * sConstants.onetwo[36*node + 13];
+                out.l2[node] += out.meansBlock[4]    * sConstants.onetwo[36*node + 14];
+                out.l2[node] += out.sdBlock[0]       * sConstants.onetwo[36*node + 15];
+                out.l2[node] += out.sdBlock[1]       * sConstants.onetwo[36*node + 16];
+                out.l2[node] += out.sdBlock[2]       * sConstants.onetwo[36*node + 17];
+                out.l2[node] += out.sdBlock[3]       * sConstants.onetwo[36*node + 18];
+                out.l2[node] += out.sdBlock[4]       * sConstants.onetwo[36*node + 19];
+                out.l2[node] += out.gradients[0]     * sConstants.onetwo[36*node + 20];
+                out.l2[node] += out.gradients[1]     * sConstants.onetwo[36*node + 21];
+                out.l2[node] += out.gradients[2]     * sConstants.onetwo[36*node + 22];
+                out.l2[node] += out.gradients[3]     * sConstants.onetwo[36*node + 23];
+                out.l2[node] += out.gradients[4]     * sConstants.onetwo[36*node + 24];
+                out.l2[node] += out.meanDeviation[0] * sConstants.onetwo[36*node + 25];
+                out.l2[node] += out.meanDeviation[1] * sConstants.onetwo[36*node + 26];
+                out.l2[node] += out.meanDeviation[2] * sConstants.onetwo[36*node + 27];
+                out.l2[node] += out.meanDeviation[3] * sConstants.onetwo[36*node + 28];
+                out.l2[node] += out.meanDeviation[4] * sConstants.onetwo[36*node + 29];
+                out.l2[node] += out.MAD[0]           * sConstants.onetwo[36*node + 30];
+                out.l2[node] += out.MAD[1]           * sConstants.onetwo[36*node + 31];
+                out.l2[node] += out.MAD[2]           * sConstants.onetwo[36*node + 32];
+                out.l2[node] += out.MAD[3]           * sConstants.onetwo[36*node + 33];
+                out.l2[node] += out.MAD[4]           * sConstants.onetwo[36*node + 34];
+                out.l2[node] += out.L                * sConstants.onetwo[36*node + 35];
             }
             
             out.l2[node] = 1.0f/(1.0f + exp(-out.l2[node]));
@@ -898,7 +863,7 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
         for (node=0; node<10; node++) {
             out.l3[node] = 0.0f;
             for (weight=0; weight<10; weight++)
-                out.l3[node] += out.l2[weight]*constants.twothree[10*node + weight];
+                out.l3[node] += out.l2[weight]*sConstants.twothree[10*node + weight];
             out.l3[node] = 1.0f/(1.0f + exp(-out.l3[node]));
         }
 
@@ -906,7 +871,7 @@ static ForPropOut SkePUFPFunc(skepu::Region2D<ForPropIn> r, SkePUFPConstants con
         for (node=0; node<7; node++) {
             out.variances[node] = 0.0f;
             for (weight=0; weight<10; weight++)
-                out.variances[node] += out.l3[weight]*constants.threefour[10*node + weight];
+                out.variances[node] += out.l3[weight]*sConstants.threefour[10*node + weight];
             out.variances[node] = log(1.0f + exp(out.variances[node]));
         }
 
@@ -941,7 +906,7 @@ constexpr static bool prefersMatrix = 0;
 #define VARIANT_CPU(block)
 #define VARIANT_OPENMP(block)
 #define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ForPropOut CU(skepu::Region2D<ForPropIn> r, SkePUFPConstants constants)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ForPropOut CU(skepu::Region2D<ForPropIn> r, SkePUFPConstants sConstants)
 {
 
 
@@ -1146,7 +1111,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ForPropOut CU(skepu::Regio
             out.MAD[feature] = medianGetter[0];
         }
         // L
-        out.L = 1.0f/constants.samples;
+        out.L = 1.0f/sConstants.samples;
 
     }
     
@@ -1160,42 +1125,42 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ForPropOut CU(skepu::Regio
 
             // Go through all secondary features
             {
-                out.l2[node] += out.meansSingle[0]   * constants.onetwo[36*node + 0]; 
-                out.l2[node] += out.meansSingle[1]   * constants.onetwo[36*node + 1]; 
-                out.l2[node] += out.meansSingle[2]   * constants.onetwo[36*node + 2]; 
-                out.l2[node] += out.meansSingle[3]   * constants.onetwo[36*node + 3]; 
-                out.l2[node] += out.meansSingle[4]   * constants.onetwo[36*node + 4]; 
-                out.l2[node] += out.sdSingle[0]      * constants.onetwo[36*node + 5];
-                out.l2[node] += out.sdSingle[1]      * constants.onetwo[36*node + 6];
-                out.l2[node] += out.sdSingle[2]      * constants.onetwo[36*node + 7];
-                out.l2[node] += out.sdSingle[3]      * constants.onetwo[36*node + 8];
-                out.l2[node] += out.sdSingle[4]      * constants.onetwo[36*node + 9];
-                out.l2[node] += out.meansBlock[0]    * constants.onetwo[36*node + 10];
-                out.l2[node] += out.meansBlock[1]    * constants.onetwo[36*node + 11];
-                out.l2[node] += out.meansBlock[2]    * constants.onetwo[36*node + 12];
-                out.l2[node] += out.meansBlock[3]    * constants.onetwo[36*node + 13];
-                out.l2[node] += out.meansBlock[4]    * constants.onetwo[36*node + 14];
-                out.l2[node] += out.sdBlock[0]       * constants.onetwo[36*node + 15];
-                out.l2[node] += out.sdBlock[1]       * constants.onetwo[36*node + 16];
-                out.l2[node] += out.sdBlock[2]       * constants.onetwo[36*node + 17];
-                out.l2[node] += out.sdBlock[3]       * constants.onetwo[36*node + 18];
-                out.l2[node] += out.sdBlock[4]       * constants.onetwo[36*node + 19];
-                out.l2[node] += out.gradients[0]     * constants.onetwo[36*node + 20];
-                out.l2[node] += out.gradients[1]     * constants.onetwo[36*node + 21];
-                out.l2[node] += out.gradients[2]     * constants.onetwo[36*node + 22];
-                out.l2[node] += out.gradients[3]     * constants.onetwo[36*node + 23];
-                out.l2[node] += out.gradients[4]     * constants.onetwo[36*node + 24];
-                out.l2[node] += out.meanDeviation[0] * constants.onetwo[36*node + 25];
-                out.l2[node] += out.meanDeviation[1] * constants.onetwo[36*node + 26];
-                out.l2[node] += out.meanDeviation[2] * constants.onetwo[36*node + 27];
-                out.l2[node] += out.meanDeviation[3] * constants.onetwo[36*node + 28];
-                out.l2[node] += out.meanDeviation[4] * constants.onetwo[36*node + 29];
-                out.l2[node] += out.MAD[0]           * constants.onetwo[36*node + 30];
-                out.l2[node] += out.MAD[1]           * constants.onetwo[36*node + 31];
-                out.l2[node] += out.MAD[2]           * constants.onetwo[36*node + 32];
-                out.l2[node] += out.MAD[3]           * constants.onetwo[36*node + 33];
-                out.l2[node] += out.MAD[4]           * constants.onetwo[36*node + 34];
-                out.l2[node] += out.L                * constants.onetwo[36*node + 35];
+                out.l2[node] += out.meansSingle[0]   * sConstants.onetwo[36*node + 0]; 
+                out.l2[node] += out.meansSingle[1]   * sConstants.onetwo[36*node + 1]; 
+                out.l2[node] += out.meansSingle[2]   * sConstants.onetwo[36*node + 2]; 
+                out.l2[node] += out.meansSingle[3]   * sConstants.onetwo[36*node + 3]; 
+                out.l2[node] += out.meansSingle[4]   * sConstants.onetwo[36*node + 4]; 
+                out.l2[node] += out.sdSingle[0]      * sConstants.onetwo[36*node + 5];
+                out.l2[node] += out.sdSingle[1]      * sConstants.onetwo[36*node + 6];
+                out.l2[node] += out.sdSingle[2]      * sConstants.onetwo[36*node + 7];
+                out.l2[node] += out.sdSingle[3]      * sConstants.onetwo[36*node + 8];
+                out.l2[node] += out.sdSingle[4]      * sConstants.onetwo[36*node + 9];
+                out.l2[node] += out.meansBlock[0]    * sConstants.onetwo[36*node + 10];
+                out.l2[node] += out.meansBlock[1]    * sConstants.onetwo[36*node + 11];
+                out.l2[node] += out.meansBlock[2]    * sConstants.onetwo[36*node + 12];
+                out.l2[node] += out.meansBlock[3]    * sConstants.onetwo[36*node + 13];
+                out.l2[node] += out.meansBlock[4]    * sConstants.onetwo[36*node + 14];
+                out.l2[node] += out.sdBlock[0]       * sConstants.onetwo[36*node + 15];
+                out.l2[node] += out.sdBlock[1]       * sConstants.onetwo[36*node + 16];
+                out.l2[node] += out.sdBlock[2]       * sConstants.onetwo[36*node + 17];
+                out.l2[node] += out.sdBlock[3]       * sConstants.onetwo[36*node + 18];
+                out.l2[node] += out.sdBlock[4]       * sConstants.onetwo[36*node + 19];
+                out.l2[node] += out.gradients[0]     * sConstants.onetwo[36*node + 20];
+                out.l2[node] += out.gradients[1]     * sConstants.onetwo[36*node + 21];
+                out.l2[node] += out.gradients[2]     * sConstants.onetwo[36*node + 22];
+                out.l2[node] += out.gradients[3]     * sConstants.onetwo[36*node + 23];
+                out.l2[node] += out.gradients[4]     * sConstants.onetwo[36*node + 24];
+                out.l2[node] += out.meanDeviation[0] * sConstants.onetwo[36*node + 25];
+                out.l2[node] += out.meanDeviation[1] * sConstants.onetwo[36*node + 26];
+                out.l2[node] += out.meanDeviation[2] * sConstants.onetwo[36*node + 27];
+                out.l2[node] += out.meanDeviation[3] * sConstants.onetwo[36*node + 28];
+                out.l2[node] += out.meanDeviation[4] * sConstants.onetwo[36*node + 29];
+                out.l2[node] += out.MAD[0]           * sConstants.onetwo[36*node + 30];
+                out.l2[node] += out.MAD[1]           * sConstants.onetwo[36*node + 31];
+                out.l2[node] += out.MAD[2]           * sConstants.onetwo[36*node + 32];
+                out.l2[node] += out.MAD[3]           * sConstants.onetwo[36*node + 33];
+                out.l2[node] += out.MAD[4]           * sConstants.onetwo[36*node + 34];
+                out.l2[node] += out.L                * sConstants.onetwo[36*node + 35];
             }
             
             out.l2[node] = 1.0f/(1.0f + exp(-out.l2[node]));
@@ -1205,7 +1170,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ForPropOut CU(skepu::Regio
         for (node=0; node<10; node++) {
             out.l3[node] = 0.0f;
             for (weight=0; weight<10; weight++)
-                out.l3[node] += out.l2[weight]*constants.twothree[10*node + weight];
+                out.l3[node] += out.l2[weight]*sConstants.twothree[10*node + weight];
             out.l3[node] = 1.0f/(1.0f + exp(-out.l3[node]));
         }
 
@@ -1213,7 +1178,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ForPropOut CU(skepu::Regio
         for (node=0; node<7; node++) {
             out.variances[node] = 0.0f;
             for (weight=0; weight<10; weight++)
-                out.variances[node] += out.l3[weight]*constants.threefour[10*node + weight];
+                out.variances[node] += out.l3[weight]*sConstants.threefour[10*node + weight];
             out.variances[node] = log(1.0f + exp(out.variances[node]));
         }
 
@@ -1230,7 +1195,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ForPropOut CU(skepu::Regio
 #define VARIANT_CPU(block)
 #define VARIANT_OPENMP(block) block
 #define VARIANT_CUDA(block)
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut OMP(skepu::Region2D<ForPropIn> r, SkePUFPConstants constants)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut OMP(skepu::Region2D<ForPropIn> r, SkePUFPConstants sConstants)
 {
 
 
@@ -1435,7 +1400,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut OMP(skepu::Region2D<ForPro
             out.MAD[feature] = medianGetter[0];
         }
         // L
-        out.L = 1.0f/constants.samples;
+        out.L = 1.0f/sConstants.samples;
 
     }
     
@@ -1449,42 +1414,42 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut OMP(skepu::Region2D<ForPro
 
             // Go through all secondary features
             {
-                out.l2[node] += out.meansSingle[0]   * constants.onetwo[36*node + 0]; 
-                out.l2[node] += out.meansSingle[1]   * constants.onetwo[36*node + 1]; 
-                out.l2[node] += out.meansSingle[2]   * constants.onetwo[36*node + 2]; 
-                out.l2[node] += out.meansSingle[3]   * constants.onetwo[36*node + 3]; 
-                out.l2[node] += out.meansSingle[4]   * constants.onetwo[36*node + 4]; 
-                out.l2[node] += out.sdSingle[0]      * constants.onetwo[36*node + 5];
-                out.l2[node] += out.sdSingle[1]      * constants.onetwo[36*node + 6];
-                out.l2[node] += out.sdSingle[2]      * constants.onetwo[36*node + 7];
-                out.l2[node] += out.sdSingle[3]      * constants.onetwo[36*node + 8];
-                out.l2[node] += out.sdSingle[4]      * constants.onetwo[36*node + 9];
-                out.l2[node] += out.meansBlock[0]    * constants.onetwo[36*node + 10];
-                out.l2[node] += out.meansBlock[1]    * constants.onetwo[36*node + 11];
-                out.l2[node] += out.meansBlock[2]    * constants.onetwo[36*node + 12];
-                out.l2[node] += out.meansBlock[3]    * constants.onetwo[36*node + 13];
-                out.l2[node] += out.meansBlock[4]    * constants.onetwo[36*node + 14];
-                out.l2[node] += out.sdBlock[0]       * constants.onetwo[36*node + 15];
-                out.l2[node] += out.sdBlock[1]       * constants.onetwo[36*node + 16];
-                out.l2[node] += out.sdBlock[2]       * constants.onetwo[36*node + 17];
-                out.l2[node] += out.sdBlock[3]       * constants.onetwo[36*node + 18];
-                out.l2[node] += out.sdBlock[4]       * constants.onetwo[36*node + 19];
-                out.l2[node] += out.gradients[0]     * constants.onetwo[36*node + 20];
-                out.l2[node] += out.gradients[1]     * constants.onetwo[36*node + 21];
-                out.l2[node] += out.gradients[2]     * constants.onetwo[36*node + 22];
-                out.l2[node] += out.gradients[3]     * constants.onetwo[36*node + 23];
-                out.l2[node] += out.gradients[4]     * constants.onetwo[36*node + 24];
-                out.l2[node] += out.meanDeviation[0] * constants.onetwo[36*node + 25];
-                out.l2[node] += out.meanDeviation[1] * constants.onetwo[36*node + 26];
-                out.l2[node] += out.meanDeviation[2] * constants.onetwo[36*node + 27];
-                out.l2[node] += out.meanDeviation[3] * constants.onetwo[36*node + 28];
-                out.l2[node] += out.meanDeviation[4] * constants.onetwo[36*node + 29];
-                out.l2[node] += out.MAD[0]           * constants.onetwo[36*node + 30];
-                out.l2[node] += out.MAD[1]           * constants.onetwo[36*node + 31];
-                out.l2[node] += out.MAD[2]           * constants.onetwo[36*node + 32];
-                out.l2[node] += out.MAD[3]           * constants.onetwo[36*node + 33];
-                out.l2[node] += out.MAD[4]           * constants.onetwo[36*node + 34];
-                out.l2[node] += out.L                * constants.onetwo[36*node + 35];
+                out.l2[node] += out.meansSingle[0]   * sConstants.onetwo[36*node + 0]; 
+                out.l2[node] += out.meansSingle[1]   * sConstants.onetwo[36*node + 1]; 
+                out.l2[node] += out.meansSingle[2]   * sConstants.onetwo[36*node + 2]; 
+                out.l2[node] += out.meansSingle[3]   * sConstants.onetwo[36*node + 3]; 
+                out.l2[node] += out.meansSingle[4]   * sConstants.onetwo[36*node + 4]; 
+                out.l2[node] += out.sdSingle[0]      * sConstants.onetwo[36*node + 5];
+                out.l2[node] += out.sdSingle[1]      * sConstants.onetwo[36*node + 6];
+                out.l2[node] += out.sdSingle[2]      * sConstants.onetwo[36*node + 7];
+                out.l2[node] += out.sdSingle[3]      * sConstants.onetwo[36*node + 8];
+                out.l2[node] += out.sdSingle[4]      * sConstants.onetwo[36*node + 9];
+                out.l2[node] += out.meansBlock[0]    * sConstants.onetwo[36*node + 10];
+                out.l2[node] += out.meansBlock[1]    * sConstants.onetwo[36*node + 11];
+                out.l2[node] += out.meansBlock[2]    * sConstants.onetwo[36*node + 12];
+                out.l2[node] += out.meansBlock[3]    * sConstants.onetwo[36*node + 13];
+                out.l2[node] += out.meansBlock[4]    * sConstants.onetwo[36*node + 14];
+                out.l2[node] += out.sdBlock[0]       * sConstants.onetwo[36*node + 15];
+                out.l2[node] += out.sdBlock[1]       * sConstants.onetwo[36*node + 16];
+                out.l2[node] += out.sdBlock[2]       * sConstants.onetwo[36*node + 17];
+                out.l2[node] += out.sdBlock[3]       * sConstants.onetwo[36*node + 18];
+                out.l2[node] += out.sdBlock[4]       * sConstants.onetwo[36*node + 19];
+                out.l2[node] += out.gradients[0]     * sConstants.onetwo[36*node + 20];
+                out.l2[node] += out.gradients[1]     * sConstants.onetwo[36*node + 21];
+                out.l2[node] += out.gradients[2]     * sConstants.onetwo[36*node + 22];
+                out.l2[node] += out.gradients[3]     * sConstants.onetwo[36*node + 23];
+                out.l2[node] += out.gradients[4]     * sConstants.onetwo[36*node + 24];
+                out.l2[node] += out.meanDeviation[0] * sConstants.onetwo[36*node + 25];
+                out.l2[node] += out.meanDeviation[1] * sConstants.onetwo[36*node + 26];
+                out.l2[node] += out.meanDeviation[2] * sConstants.onetwo[36*node + 27];
+                out.l2[node] += out.meanDeviation[3] * sConstants.onetwo[36*node + 28];
+                out.l2[node] += out.meanDeviation[4] * sConstants.onetwo[36*node + 29];
+                out.l2[node] += out.MAD[0]           * sConstants.onetwo[36*node + 30];
+                out.l2[node] += out.MAD[1]           * sConstants.onetwo[36*node + 31];
+                out.l2[node] += out.MAD[2]           * sConstants.onetwo[36*node + 32];
+                out.l2[node] += out.MAD[3]           * sConstants.onetwo[36*node + 33];
+                out.l2[node] += out.MAD[4]           * sConstants.onetwo[36*node + 34];
+                out.l2[node] += out.L                * sConstants.onetwo[36*node + 35];
             }
             
             out.l2[node] = 1.0f/(1.0f + exp(-out.l2[node]));
@@ -1494,7 +1459,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut OMP(skepu::Region2D<ForPro
         for (node=0; node<10; node++) {
             out.l3[node] = 0.0f;
             for (weight=0; weight<10; weight++)
-                out.l3[node] += out.l2[weight]*constants.twothree[10*node + weight];
+                out.l3[node] += out.l2[weight]*sConstants.twothree[10*node + weight];
             out.l3[node] = 1.0f/(1.0f + exp(-out.l3[node]));
         }
 
@@ -1502,7 +1467,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut OMP(skepu::Region2D<ForPro
         for (node=0; node<7; node++) {
             out.variances[node] = 0.0f;
             for (weight=0; weight<10; weight++)
-                out.variances[node] += out.l3[weight]*constants.threefour[10*node + weight];
+                out.variances[node] += out.l3[weight]*sConstants.threefour[10*node + weight];
             out.variances[node] = log(1.0f + exp(out.variances[node]));
         }
 
@@ -1519,7 +1484,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut OMP(skepu::Region2D<ForPro
 #define VARIANT_CPU(block) block
 #define VARIANT_OPENMP(block)
 #define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut CPU(skepu::Region2D<ForPropIn> r, SkePUFPConstants constants)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut CPU(skepu::Region2D<ForPropIn> r, SkePUFPConstants sConstants)
 {
 
 
@@ -1724,7 +1689,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut CPU(skepu::Region2D<ForPro
             out.MAD[feature] = medianGetter[0];
         }
         // L
-        out.L = 1.0f/constants.samples;
+        out.L = 1.0f/sConstants.samples;
 
     }
     
@@ -1738,42 +1703,42 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut CPU(skepu::Region2D<ForPro
 
             // Go through all secondary features
             {
-                out.l2[node] += out.meansSingle[0]   * constants.onetwo[36*node + 0]; 
-                out.l2[node] += out.meansSingle[1]   * constants.onetwo[36*node + 1]; 
-                out.l2[node] += out.meansSingle[2]   * constants.onetwo[36*node + 2]; 
-                out.l2[node] += out.meansSingle[3]   * constants.onetwo[36*node + 3]; 
-                out.l2[node] += out.meansSingle[4]   * constants.onetwo[36*node + 4]; 
-                out.l2[node] += out.sdSingle[0]      * constants.onetwo[36*node + 5];
-                out.l2[node] += out.sdSingle[1]      * constants.onetwo[36*node + 6];
-                out.l2[node] += out.sdSingle[2]      * constants.onetwo[36*node + 7];
-                out.l2[node] += out.sdSingle[3]      * constants.onetwo[36*node + 8];
-                out.l2[node] += out.sdSingle[4]      * constants.onetwo[36*node + 9];
-                out.l2[node] += out.meansBlock[0]    * constants.onetwo[36*node + 10];
-                out.l2[node] += out.meansBlock[1]    * constants.onetwo[36*node + 11];
-                out.l2[node] += out.meansBlock[2]    * constants.onetwo[36*node + 12];
-                out.l2[node] += out.meansBlock[3]    * constants.onetwo[36*node + 13];
-                out.l2[node] += out.meansBlock[4]    * constants.onetwo[36*node + 14];
-                out.l2[node] += out.sdBlock[0]       * constants.onetwo[36*node + 15];
-                out.l2[node] += out.sdBlock[1]       * constants.onetwo[36*node + 16];
-                out.l2[node] += out.sdBlock[2]       * constants.onetwo[36*node + 17];
-                out.l2[node] += out.sdBlock[3]       * constants.onetwo[36*node + 18];
-                out.l2[node] += out.sdBlock[4]       * constants.onetwo[36*node + 19];
-                out.l2[node] += out.gradients[0]     * constants.onetwo[36*node + 20];
-                out.l2[node] += out.gradients[1]     * constants.onetwo[36*node + 21];
-                out.l2[node] += out.gradients[2]     * constants.onetwo[36*node + 22];
-                out.l2[node] += out.gradients[3]     * constants.onetwo[36*node + 23];
-                out.l2[node] += out.gradients[4]     * constants.onetwo[36*node + 24];
-                out.l2[node] += out.meanDeviation[0] * constants.onetwo[36*node + 25];
-                out.l2[node] += out.meanDeviation[1] * constants.onetwo[36*node + 26];
-                out.l2[node] += out.meanDeviation[2] * constants.onetwo[36*node + 27];
-                out.l2[node] += out.meanDeviation[3] * constants.onetwo[36*node + 28];
-                out.l2[node] += out.meanDeviation[4] * constants.onetwo[36*node + 29];
-                out.l2[node] += out.MAD[0]           * constants.onetwo[36*node + 30];
-                out.l2[node] += out.MAD[1]           * constants.onetwo[36*node + 31];
-                out.l2[node] += out.MAD[2]           * constants.onetwo[36*node + 32];
-                out.l2[node] += out.MAD[3]           * constants.onetwo[36*node + 33];
-                out.l2[node] += out.MAD[4]           * constants.onetwo[36*node + 34];
-                out.l2[node] += out.L                * constants.onetwo[36*node + 35];
+                out.l2[node] += out.meansSingle[0]   * sConstants.onetwo[36*node + 0]; 
+                out.l2[node] += out.meansSingle[1]   * sConstants.onetwo[36*node + 1]; 
+                out.l2[node] += out.meansSingle[2]   * sConstants.onetwo[36*node + 2]; 
+                out.l2[node] += out.meansSingle[3]   * sConstants.onetwo[36*node + 3]; 
+                out.l2[node] += out.meansSingle[4]   * sConstants.onetwo[36*node + 4]; 
+                out.l2[node] += out.sdSingle[0]      * sConstants.onetwo[36*node + 5];
+                out.l2[node] += out.sdSingle[1]      * sConstants.onetwo[36*node + 6];
+                out.l2[node] += out.sdSingle[2]      * sConstants.onetwo[36*node + 7];
+                out.l2[node] += out.sdSingle[3]      * sConstants.onetwo[36*node + 8];
+                out.l2[node] += out.sdSingle[4]      * sConstants.onetwo[36*node + 9];
+                out.l2[node] += out.meansBlock[0]    * sConstants.onetwo[36*node + 10];
+                out.l2[node] += out.meansBlock[1]    * sConstants.onetwo[36*node + 11];
+                out.l2[node] += out.meansBlock[2]    * sConstants.onetwo[36*node + 12];
+                out.l2[node] += out.meansBlock[3]    * sConstants.onetwo[36*node + 13];
+                out.l2[node] += out.meansBlock[4]    * sConstants.onetwo[36*node + 14];
+                out.l2[node] += out.sdBlock[0]       * sConstants.onetwo[36*node + 15];
+                out.l2[node] += out.sdBlock[1]       * sConstants.onetwo[36*node + 16];
+                out.l2[node] += out.sdBlock[2]       * sConstants.onetwo[36*node + 17];
+                out.l2[node] += out.sdBlock[3]       * sConstants.onetwo[36*node + 18];
+                out.l2[node] += out.sdBlock[4]       * sConstants.onetwo[36*node + 19];
+                out.l2[node] += out.gradients[0]     * sConstants.onetwo[36*node + 20];
+                out.l2[node] += out.gradients[1]     * sConstants.onetwo[36*node + 21];
+                out.l2[node] += out.gradients[2]     * sConstants.onetwo[36*node + 22];
+                out.l2[node] += out.gradients[3]     * sConstants.onetwo[36*node + 23];
+                out.l2[node] += out.gradients[4]     * sConstants.onetwo[36*node + 24];
+                out.l2[node] += out.meanDeviation[0] * sConstants.onetwo[36*node + 25];
+                out.l2[node] += out.meanDeviation[1] * sConstants.onetwo[36*node + 26];
+                out.l2[node] += out.meanDeviation[2] * sConstants.onetwo[36*node + 27];
+                out.l2[node] += out.meanDeviation[3] * sConstants.onetwo[36*node + 28];
+                out.l2[node] += out.meanDeviation[4] * sConstants.onetwo[36*node + 29];
+                out.l2[node] += out.MAD[0]           * sConstants.onetwo[36*node + 30];
+                out.l2[node] += out.MAD[1]           * sConstants.onetwo[36*node + 31];
+                out.l2[node] += out.MAD[2]           * sConstants.onetwo[36*node + 32];
+                out.l2[node] += out.MAD[3]           * sConstants.onetwo[36*node + 33];
+                out.l2[node] += out.MAD[4]           * sConstants.onetwo[36*node + 34];
+                out.l2[node] += out.L                * sConstants.onetwo[36*node + 35];
             }
             
             out.l2[node] = 1.0f/(1.0f + exp(-out.l2[node]));
@@ -1783,7 +1748,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut CPU(skepu::Region2D<ForPro
         for (node=0; node<10; node++) {
             out.l3[node] = 0.0f;
             for (weight=0; weight<10; weight++)
-                out.l3[node] += out.l2[weight]*constants.twothree[10*node + weight];
+                out.l3[node] += out.l2[weight]*sConstants.twothree[10*node + weight];
             out.l3[node] = 1.0f/(1.0f + exp(-out.l3[node]));
         }
 
@@ -1791,7 +1756,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ForPropOut CPU(skepu::Region2D<ForPro
         for (node=0; node<7; node++) {
             out.variances[node] = 0.0f;
             for (weight=0; weight<10; weight++)
-                out.variances[node] += out.l3[weight]*constants.threefour[10*node + weight];
+                out.variances[node] += out.l3[weight]*sConstants.threefour[10*node + weight];
             out.variances[node] = log(1.0f + exp(out.variances[node]));
         }
 
@@ -1809,7 +1774,7 @@ void DenoiserNN::SkePUForwardProp() {
     auto out = skepu::Matrix<ForPropOut>(yRes, xRes);
     SkePUFPConstants sConstants;
 
-    // Set Constants
+    // Set sConstants
     int w;
     sConstants.samples = sampleCount;
     for (w=0;w<360;w++)
@@ -2158,39 +2123,6 @@ void DenoiserNN::OMPBackProp() {
         }
     }
 }
-struct FilterDerivIn {
-    float preScreen[3];
-    float normal[3];
-    float alb1[3];
-    float alb2[3];
-    float worldPos[3];
-    float denoisedCol[3];
-    float directLight;
-    float stdDev[6];
-    float variances[7];
-    float wcSum;
-};
-struct FilterDerivOut {
-    float paramXYZ[7][3];
-};
-struct SkePUBPIn {
-
-    float targetCol[3];
-    float denoisedCol[3];
-    FilterDerivOut deriv;
-
-    float s[36];
-    float l2[10];
-    float l3[10];
-
-};
-struct SkePUBPOut {
-
-    float onetwo[360];
-    float twothree[100];
-    float threefour[70];
-
-};
 static FilterDerivOut SkePUFDFunc(skepu::Region2D<FilterDerivIn> r, int samples) {
     // Contribution to the filtered colour of the filter paramater
 
@@ -3072,12 +3004,12 @@ static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) | (x >> (64 - k));
 }
 static inline uint64_t xoroshiro128PP() {
-	const uint64_t s0 = renderer.constants.GloRandS[0];
-	uint64_t s1 = renderer.constants.GloRandS[1];
+	const uint64_t s0 = constants.GloRandS[0];
+	uint64_t s1 = constants.GloRandS[1];
 	const uint64_t result_plus = rotl(s0 + s1, R) + s0;
 	s1 ^= s0;
-	renderer.constants.GloRandS[0] = rotl(s0, A) ^ s1 ^ (s1 << B);
-	renderer.constants.GloRandS[1] = rotl(s1, C);
+	constants.GloRandS[0] = rotl(s0, A) ^ s1 ^ (s1 << B);
+	constants.GloRandS[1] = rotl(s1, C);
 	return result_plus;
 }
 float RandBetween(float min, float max) {

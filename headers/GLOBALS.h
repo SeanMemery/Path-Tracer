@@ -73,6 +73,129 @@ extern DenoisingInf* denoisingInf;
 extern float* layerTwoValues; // 10 vals per pixel
 extern float* layerThreeValues; // 10 vals per pixel
 
+struct Constants {
+    float camPos[3], camForward[3], camRight[3], camUp[3];
+	float maxAngle, randSamp;
+	int numShapes, maxDepth;
+	int RESV, RESH;
+	float maxAngleV, maxAngleH, focalLength;
+
+	uint64_t GloRandS[2];
+
+	float backgroundColour[3];
+
+	float shapes[20][16];
+
+	int importantShapes[5];
+	uint numImportantShapes;
+	uint getDenoiserInf;
+};
+
+struct ReturnStruct {
+	float xyz[3];
+	float normal[3];
+	float albedo1[3];
+	float albedo2[3];
+	float worldPos[3];
+	float directLight;
+	uint raysSent;
+};
+
+struct RandomSeeds {
+	long s1;
+	long s2;
+};
+
+extern Constants constants;
+
+struct GPUInf {
+    float col[3] = {0.0f, 0.0f, 0.0f};
+	float normal[3] = {0.0f, 0.0f, 0.0f};
+	float albedo1[3] = {0.0f, 0.0f, 0.0f};
+    float albedo2[3] = {0.0f, 0.0f, 0.0f};
+    float worldPos[3] = {0.0f, 0.0f, 0.0f};
+    float directLight = 0.0f;
+    float stdDevs[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    float variances[7] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+};
+
+struct FilterVals {
+    float x;
+    float y;
+    float z;
+    float wcSum;
+};
+
+struct ForPropIn {
+
+    float normal;
+    float alb1;
+    float alb2;
+    float worldPos;
+    float directLight;
+    float stdDev[6];
+
+};
+struct ForPropOut {
+
+    float l2[10];
+    float l3[10];
+    float variances[7];
+
+    // Secondary Features
+    float meansSingle[5];
+    float sdSingle[5];
+    float meansBlock[5];
+    float sdBlock[5];
+    float gradients[5];
+    float meanDeviation[5];
+    float MAD[5];
+    float L;
+
+};
+struct SkePUFPConstants {
+
+    int samples;
+    float onetwo[360];
+    float twothree[100];
+    float threefour[70];
+
+};
+struct FilterDerivIn {
+    float preScreen[3];
+    float normal[3];
+    float alb1[3];
+    float alb2[3];
+    float worldPos[3];
+    float denoisedCol[3];
+    float directLight;
+    float stdDev[6];
+    float variances[7];
+    float wcSum;
+};
+struct FilterDerivOut {
+    float paramXYZ[7][3];
+};
+struct SkePUBPIn {
+
+    float targetCol[3];
+    float denoisedCol[3];
+    FilterDerivOut deriv;
+
+    float s[36];
+    float l2[10];
+    float l3[10];
+
+};
+struct SkePUBPOut {
+
+    float onetwo[360];
+    float twothree[100];
+    float threefour[70];
+
+};
+
+
 namespace GLOBALS {
 
     static void DeleteScreens(bool delTarget) {

@@ -169,34 +169,38 @@
         int v, sd, c;
         for (int ind = 0; ind < xRes*yRes; ind++) {
 
+            GPUInf tempInf;
+
             // Final Col
-            mat[ind].col[0] = preScreen[ind].x / sampleCount;
-            mat[ind].col[1] = preScreen[ind].y / sampleCount;
-            mat[ind].col[2] = preScreen[ind].z / sampleCount; 
+            tempInf.col[0] = preScreen[ind].x / sampleCount;
+            tempInf.col[1] = preScreen[ind].y / sampleCount;
+            tempInf.col[2] = preScreen[ind].z / sampleCount; 
             // Normal
-            mat[ind].normal[0] = normal[ind].x / sampleCount;
-            mat[ind].normal[1] = normal[ind].y / sampleCount;
-            mat[ind].normal[2] = normal[ind].z / sampleCount;
+            tempInf.normal[0] = normal[ind].x / sampleCount;
+            tempInf.normal[1] = normal[ind].y / sampleCount;
+            tempInf.normal[2] = normal[ind].z / sampleCount;
             // Albedo1
-            mat[ind].albedo1[0] = albedo1[ind].x / sampleCount;
-            mat[ind].albedo1[1] = albedo1[ind].y / sampleCount;
-            mat[ind].albedo1[2] = albedo1[ind].z / sampleCount;
+            tempInf.albedo1[0] = albedo1[ind].x / sampleCount;
+            tempInf.albedo1[1] = albedo1[ind].y / sampleCount;
+            tempInf.albedo1[2] = albedo1[ind].z / sampleCount;
             // Albedo2
-            mat[ind].albedo2[0] = albedo2[ind].x / sampleCount;
-            mat[ind].albedo2[1] = albedo2[ind].y / sampleCount;
-            mat[ind].albedo2[2] = albedo2[ind].z / sampleCount;
+            tempInf.albedo2[0] = albedo2[ind].x / sampleCount;
+            tempInf.albedo2[1] = albedo2[ind].y / sampleCount;
+            tempInf.albedo2[2] = albedo2[ind].z / sampleCount;
             // World Pos
-            mat[ind].worldPos[0] = worldPos[ind].x / sampleCount;
-            mat[ind].worldPos[1] = worldPos[ind].y / sampleCount;
-            mat[ind].worldPos[2] = worldPos[ind].z / sampleCount;
+            tempInf.worldPos[0] = worldPos[ind].x / sampleCount;
+            tempInf.worldPos[1] = worldPos[ind].y / sampleCount;
+            tempInf.worldPos[2] = worldPos[ind].z / sampleCount;
             // Direct Light
-            mat[ind].directLight = directLight[ind].x / sampleCount;
+            tempInf.directLight = directLight[ind].x / sampleCount;
             // Std Devs
             for (sd=0; sd < 6; sd++)
-                mat[ind].stdDevs[sd] = denoisingInf[ind].stdDev[sd];
+                tempInf.stdDevs[sd] = denoisingInf[ind].stdDev[sd];
             // Variances
             for (v=0; v < 7; v++)
-                mat[ind].variances[v] = denoisingInf[ind].variances[v];
+                tempInf.variances[v] = denoisingInf[ind].variances[v];
+
+            mat[ind] = tempInf;
         }
 
         auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(denoisingSkePUBackend)};
@@ -465,7 +469,7 @@
         } 
     }
     void Denoiser::CUDADenoise(){
-
+        CUDADenoiser::denoise();
     }
     void Denoiser::OpenGLDenoise(){
 

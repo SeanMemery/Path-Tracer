@@ -1,5 +1,4 @@
-#include "CUDARender.h"
-#include "Renderers.h"
+#include "CUDAHeader.h"
 
     __device__
     float RandBetween(RandomSeeds& s, float min, float max) {
@@ -276,86 +275,10 @@
             // Collide with shapes, generating new dirs as needed (i.e. random or specular)
             {
 
-                float E = 0.001f;
+                float E = 0.00001f;
 
                 // Find shape
-                {
-                    float t = INFINITY;
-                    for (int ind = 0; ind < constants->numShapes; ind++) {
-                        int shapeType = (int)constants->shapes[ind][7];
-                        float tempT = INFINITY;
-                        // ----- intersect shapes -----
-                        // aabb
-                        if ( shapeType == 0) {
-                            int sign[3] = {dir.x < 0, dir.y < 0, dir.z < 0};
-                            float3 bounds[2];
-                            bounds[0].x = constants->shapes[ind][8];
-                            bounds[0].y = constants->shapes[ind][9];
-                            bounds[0].z = constants->shapes[ind][10];
-                            bounds[1].x = constants->shapes[ind][11];
-                            bounds[1].y = constants->shapes[ind][12];
-                            bounds[1].z = constants->shapes[ind][13];
-                            float tmin = (bounds[sign[0]].x - prevPos.x) / dir.x;
-                            float tmax = (bounds[1 - sign[0]].x - prevPos.x) / dir.x;
-                            float tymin = (bounds[sign[1]].y - prevPos.y) / dir.y;
-                            float tymax = (bounds[1 - sign[1]].y - prevPos.y) / dir.y;
-                            if ((tmin > tymax) || (tymin > tmax))
-                                continue;
-                            if (tymin > tmin)
-                                tmin = tymin;
-                            if (tymax < tmax)
-                                tmax = tymax;
-                            float tzmin = (bounds[sign[2]].z - prevPos.z) / dir.z;
-                            float tzmax = (bounds[1 - sign[2]].z - prevPos.z) / dir.z;
-                            if ((tmin > tzmax) || (tzmin > tmax))
-                                continue;
-                            if (tzmin > tmin)
-                                tmin = tzmin;
-                            if (tzmax < tmax)
-                                tmax = tzmax;
-                            // Check times are positive, but use E for floating point accuracy
-                            if (tmin > E)
-                                tempT = tmin;
-                            else if (tmax > E)
-                                tempT = tmax;
-                            else
-                                continue;
-                        }
-                        // sphere
-                        else if (shapeType == 1) {
-                            float3 L;
-                            L.x = constants->shapes[ind][0] - prevPos.x;
-                            L.y = constants->shapes[ind][1] - prevPos.y;
-                            L.z = constants->shapes[ind][2] - prevPos.z;
-                            float tca = dot(L, dir);
-                            if (tca < E)
-                                continue;
-                            float dsq = dot(L,L) - tca * tca;
-                            float radiusSq = constants->shapes[ind][8] * constants->shapes[ind][8];
-                            if (radiusSq - dsq < E)
-                                continue;
-                            float thc = sqrtf(radiusSq - dsq);
-                            float t0 = tca - thc;
-                            float t1 = tca + thc;
-                            // Check times are positive, but use E for floating point accuracy
-                            if (t0 > E)
-                                tempT = t0;
-                            else if (t1 > E)
-                                tempT = t1;
-                            else 
-                                continue;
-                        }
-                        if (tempT < t) {
-                            hitAnything = true;
-                            t = tempT;
-                            posHit.x = prevPos.x + dir.x*t;
-                            posHit.y = prevPos.y + dir.y*t;
-                            posHit.z = prevPos.z + dir.z*t;
-                            shapeHit = ind;
-                            shapeTypeHit = shapeType;
-                        }
-                    }
-                }
+                posHit = Intersect(dir, prevPos, constants, shapeHit, shapeTypeHit, hitAnything);
 
                 if (hitAnything) {
 
@@ -408,7 +331,7 @@
                     // Gen new dirs and pdfs
                     {
 
-                        // Random Dir Generation
+                            // Random Dir Generation
                             float3 randDir {0.0f, 0.0f, 0.0f};
                             float rands[5];
                             {
@@ -497,7 +420,7 @@
                                 dir.y = dirIn.y - 2.0f*cosi*refNorm.y + blur*randDir.y;
                                 dir.z = dirIn.z - 2.0f*cosi*refNorm.z + blur*randDir.z;
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
-                                float cosine2 = dot(dir, refNorm);
+                                float cosine2 = dot(dir, normals[pos]);
                                 pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;
                             }
                             else {
@@ -510,7 +433,7 @@
 
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
                                 // Danger here, scattering pdf was going to 0 for refracting and making colour explode
-                                float cosine2 = dot(dir, refNorm);
+                                float cosine2 = dot(dir, normals[pos]);
                                 pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;					
                             }
                         }
@@ -528,7 +451,7 @@
                             dir.y = dirIn.y - 2.0f*prevDirNormalDot*refNorm.y + blur*randDir.y;
                             dir.z = dirIn.z - 2.0f*prevDirNormalDot*refNorm.z + blur*randDir.z;
 
-                            float cosine2 = dot(dir, refNorm);
+                            float cosine2 = dot(dir, normals[pos]);
 
                             // Same as scattering pdf, to make pdf 1, as it is specular
                             pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;
@@ -604,77 +527,11 @@
                                     //
                                     // Shadow Ray
                                     // Need to send shadow ray to see if point is in path of direct light
-                                    bool shadowRayHit = false;
 
-                                    for (int ind = 0; ind < constants->numShapes; ind++) {
-                                        if (ind == impShape)
-                                            continue;
-                                        numRays++;
-                                        int shapeType = (int)constants->shapes[ind][7];
-                                        float tempT = INFINITY;
-                                        // ----- intersect shapes -----
-                                        // aabb
-                                        if ( shapeType == 0) {
-                                            int sign[3] = {dir.x < 0, dir.y < 0, dir.z < 0};
-                                            float3 bounds[2];
-                                            bounds[0].x = constants->shapes[ind][8];
-                                            bounds[0].y = constants->shapes[ind][9];
-                                            bounds[0].z = constants->shapes[ind][10];
-                                            bounds[1].x = constants->shapes[ind][11];
-                                            bounds[1].y = constants->shapes[ind][12];
-                                            bounds[1].z = constants->shapes[ind][13];
-                                            float tmin = (bounds[sign[0]].x - posHit.x) / dir.x;
-                                            float tmax = (bounds[1 - sign[0]].x - posHit.x) / dir.x;
-                                            float tymin = (bounds[sign[1]].y - posHit.y) / dir.y;
-                                            float tymax = (bounds[1 - sign[1]].y - posHit.y) / dir.y;
-                                            if ((tmin > tymax) || (tymin > tmax))
-                                                continue;
-                                            if (tymin > tmin)
-                                                tmin = tymin;
-                                            if (tymax < tmax)
-                                                tmax = tymax;
-                                            float tzmin = (bounds[sign[2]].z - posHit.z) / dir.z;
-                                            float tzmax = (bounds[1 - sign[2]].z - posHit.z) / dir.z;
-                                            if ((tmin > tzmax) || (tzmin > tmax))
-                                                continue;
-                                            if (tzmin > tmin)
-                                                tmin = tzmin;
-                                            if (tzmax < tmax)
-                                                tmax = tzmax;
-                                            // Check times are positive, but use E for floating point accuracy
-                                            tempT = tmin > E ? tmin : (tmax > E ? tmax : INFINITY); 
-                                        }
-                                        // sphere
-                                        else if (shapeType == 1) {
-                                            float3 L;
-                                            L.x = constants->shapes[ind][0] - posHit.x;
-                                            L.y = constants->shapes[ind][1] - posHit.y;
-                                            L.z = constants->shapes[ind][2] - posHit.z;
-                                            float tca = dot(L, dir);
-                                            if (tca < E)
-                                                continue;
-                                            float dsq = dot(L,L) - tca * tca;
-                                            float radiusSq = constants->shapes[ind][8] * constants->shapes[ind][8];
-                                            if (radiusSq - dsq < E)
-                                                continue;
-                                            float thc = sqrtf(radiusSq - dsq);
-                                            float t0 = tca - thc;
-                                            float t1 = tca + thc;
-                                            // Check times are positive, but use E for floating point accuracy
-                                            tempT = t0 > E ? t0 : (t1 > E ? t1 : INFINITY); 
-                                        }
-                                        if (tempT < dirLen) {
-                                            shadowRayHit = true;
-                                            break;
-                                        }
-                                    }
 
-                                    if (!shadowRayHit) {
+                                    if (!ShadowIntersect(directDir, posHit, dirLen, impShape, constants)) {
                                         float cosine = fabs(dot(directDir, randDir));
-                                        if (cosine < 0.01) {
-                                            p0 = 1 / M_PI;
-                                        }
-                                        else {
+                                        if (cosine > 0.01f) {
                                             shadowRays[pos]=1; 
                                             dir = directDir;
                                             p0 = fabs(cosine) / M_PI;
@@ -816,91 +673,91 @@
         ret->raysSent = numRays;
     }
 
-    void CUDARender::render() {
-        int numPixels = xRes*yRes;
+        void CUDARender::render() {
+            int numPixels = xRes*yRes;
 
-        RandomSeeds*  CUDASeeds;
-        Constants*    CUDAConstants;
-        ReturnStruct* CUDAReturn;
+            RandomSeeds*  CUDASeeds;
+            Constants*    CUDAConstants;
+            ReturnStruct* CUDAReturn;
 
-        cudaMallocManaged(&CUDASeeds,     numPixels*sizeof(RandomSeeds));
-        cudaMallocManaged(&CUDAConstants, sizeof(Constants));
-        cudaMallocManaged(&CUDAReturn,    numPixels*sizeof(ReturnStruct));
+            cudaMallocManaged(&CUDASeeds,     numPixels*sizeof(RandomSeeds));
+            cudaMallocManaged(&CUDAConstants, sizeof(Constants));
+            cudaMallocManaged(&CUDAReturn,    numPixels*sizeof(ReturnStruct));
 
-        memcpy(CUDAConstants, &renderer.constants, sizeof(Constants));
+            memcpy(CUDAConstants, &constants, sizeof(Constants));
 
-        // Generate random seeds for each pixel
-        for (int ind = 0; ind < numPixels; ind++) {
-            uint64_t s0 = renderer.constants.GloRandS[0];
-            uint64_t s1 = renderer.constants.GloRandS[1];
-            s1 ^= s0;
-            renderer.constants.GloRandS[0] = (s0 << 49) | ((s0 >> (64 - 49)) ^ s1 ^ (s1 << 21));
-            renderer.constants.GloRandS[1] = (s1 << 28) | (s1 >> (64 - 28));
-            RandomSeeds s;
-            s.s1 = renderer.constants.GloRandS[0];
-            s.s2 = renderer.constants.GloRandS[1];
-            CUDASeeds[ind] = s;
+            // Generate random seeds for each pixel
+            for (int ind = 0; ind < numPixels; ind++) {
+                uint64_t s0 = constants.GloRandS[0];
+                uint64_t s1 = constants.GloRandS[1];
+                s1 ^= s0;
+                constants.GloRandS[0] = (s0 << 49) | ((s0 >> (64 - 49)) ^ s1 ^ (s1 << 21));
+                constants.GloRandS[1] = (s1 << 28) | (s1 >> (64 - 28));
+                RandomSeeds s;
+                s.s1 = constants.GloRandS[0];
+                s.s2 = constants.GloRandS[1];
+                CUDASeeds[ind] = s;
+            }
+
+            dim3 numBlocks(xRes/rootThreadsPerBlock + 1, 
+                        yRes/rootThreadsPerBlock + 1); 
+
+            CUDARenderFunc<<<numBlocks,dim3(rootThreadsPerBlock, rootThreadsPerBlock)>>>(CUDASeeds, CUDAConstants, CUDAReturn );       
+
+            // Wait for GPU to finish before accessing on host
+            cudaDeviceSynchronize();
+
+            ReturnStruct ret;
+            sampleCount++;
+            rayCount = 0;
+            DenoisingInf* info;
+            for (int index = 0; index < numPixels; index++) {
+                ret = CUDAReturn[index];
+
+                preScreen[index] += vec3(ret.xyz[0], ret.xyz[1], ret.xyz[2]);
+                rayCount += ret.raysSent;
+
+                // Denoiser info
+                if (denoising) {
+                    info = &denoisingInf[index];
+                    normal[index]      += vec3(ret.normal[0], ret.normal[1], ret.normal[2]);
+                    albedo1[index]     += vec3(ret.albedo1[0], ret.albedo1[1], ret.albedo1[2]);
+                    albedo2[index]     += vec3(ret.albedo2[0], ret.albedo2[1], ret.albedo2[2]);
+                    directLight[index] += vec3(ret.directLight, ret.directLight, ret.directLight);
+                    worldPos[index]    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
+                    // Standard Deviations
+                    info->stdDevVecs[0] += vec3(
+                        pow(preScreen[index].x/sampleCount - ret.xyz[0],2),
+                        pow(preScreen[index].y/sampleCount - ret.xyz[1],2),     
+                        pow(preScreen[index].z/sampleCount - ret.xyz[2],2));
+                    info->stdDevVecs[1] += vec3(
+                        pow(normal[index].x/sampleCount - ret.normal[0],2),
+                        pow(normal[index].y/sampleCount - ret.normal[1],2),     
+                        pow(normal[index].z/sampleCount - ret.normal[2],2));
+                    info->stdDevVecs[2] += vec3(
+                        pow(albedo1[index].x/sampleCount - ret.albedo1[0],2),
+                        pow(albedo1[index].y/sampleCount - ret.albedo1[1],2),    
+                        pow(albedo1[index].z/sampleCount - ret.albedo1[2],2));
+                    info->stdDevVecs[3] += vec3(
+                        pow(albedo2[index].x/sampleCount - ret.albedo2[0],2),
+                        pow(albedo2[index].y/sampleCount - ret.albedo2[1],2),    
+                        pow(albedo2[index].z/sampleCount - ret.albedo2[2],2));
+                    info->stdDevVecs[4] += vec3(
+                        pow(worldPos[index].x/sampleCount - ret.worldPos[0],2),
+                        pow(worldPos[index].y/sampleCount - ret.worldPos[1],2),   
+                        pow(worldPos[index].z/sampleCount - ret.worldPos[2],2));
+                    info->stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0); 
+                    info->stdDev[0] = (info->stdDevVecs[0][0] + info->stdDevVecs[0][1] + info->stdDevVecs[0][2])/sampleCount;
+                    info->stdDev[1] = (info->stdDevVecs[1][0] + info->stdDevVecs[1][1] + info->stdDevVecs[1][2])/sampleCount;
+                    info->stdDev[2] = (info->stdDevVecs[2][0] + info->stdDevVecs[2][1] + info->stdDevVecs[2][2])/sampleCount;
+                    info->stdDev[3] = (info->stdDevVecs[3][0] + info->stdDevVecs[3][1] + info->stdDevVecs[3][2])/sampleCount;
+                    info->stdDev[4] = (info->stdDevVecs[4][0] + info->stdDevVecs[4][1] + info->stdDevVecs[4][2])/sampleCount;
+                    info->stdDev[5] =  info->stdDevVecs[5][0]/sampleCount;
+                }
+            }  
+
+            // Free memory
+            cudaFree(CUDASeeds);
+            cudaFree(CUDAConstants);
+            cudaFree(CUDAReturn);
         }
-
-        dim3 numBlocks(xRes/rootThreadsPerBlock + 1, 
-                       yRes/rootThreadsPerBlock + 1); 
-
-        CUDARenderFunc<<<numBlocks,dim3(rootThreadsPerBlock, rootThreadsPerBlock)>>>(CUDASeeds, CUDAConstants, CUDAReturn );       
-
-        // Wait for GPU to finish before accessing on host
-        cudaDeviceSynchronize();
-
-        ReturnStruct ret;
-        sampleCount++;
-        rayCount = 0;
-        DenoisingInf* info;
-		for (int index = 0; index < numPixels; index++) {
-			ret = CUDAReturn[index];
-
-            preScreen[index] += vec3(ret.xyz[0], ret.xyz[1], ret.xyz[2]);
-			rayCount += ret.raysSent;
-
-			// Denoiser info
-			if (denoising) {
-                info = &denoisingInf[index];
-				normal[index]      += vec3(ret.normal[0], ret.normal[1], ret.normal[2]);
-				albedo1[index]     += vec3(ret.albedo1[0], ret.albedo1[1], ret.albedo1[2]);
-				albedo2[index]     += vec3(ret.albedo2[0], ret.albedo2[1], ret.albedo2[2]);
-				directLight[index] += vec3(ret.directLight, ret.directLight, ret.directLight);
-				worldPos[index]    += vec3(ret.worldPos[0], ret.worldPos[1], ret.worldPos[2]);
-				// Standard Deviations
-                info->stdDevVecs[0] += vec3(
-                     pow(preScreen[index].x/sampleCount - ret.xyz[0],2),
-                     pow(preScreen[index].y/sampleCount - ret.xyz[1],2),     
-                     pow(preScreen[index].z/sampleCount - ret.xyz[2],2));
-				info->stdDevVecs[1] += vec3(
-                     pow(normal[index].x/sampleCount - ret.normal[0],2),
-                     pow(normal[index].y/sampleCount - ret.normal[1],2),     
-                     pow(normal[index].z/sampleCount - ret.normal[2],2));
-				info->stdDevVecs[2] += vec3(
-                    pow(albedo1[index].x/sampleCount - ret.albedo1[0],2),
-				    pow(albedo1[index].y/sampleCount - ret.albedo1[1],2),    
-				    pow(albedo1[index].z/sampleCount - ret.albedo1[2],2));
-				info->stdDevVecs[3] += vec3(
-                    pow(albedo2[index].x/sampleCount - ret.albedo2[0],2),
-				    pow(albedo2[index].y/sampleCount - ret.albedo2[1],2),    
-				    pow(albedo2[index].z/sampleCount - ret.albedo2[2],2));
-				info->stdDevVecs[4] += vec3(
-                    pow(worldPos[index].x/sampleCount - ret.worldPos[0],2),
-				    pow(worldPos[index].y/sampleCount - ret.worldPos[1],2),   
-				    pow(worldPos[index].z/sampleCount - ret.worldPos[2],2));
-				info->stdDevVecs[5] += vec3(pow(directLight[index].x/sampleCount - ret.directLight,2),0,0); 
-                info->stdDev[0] = (info->stdDevVecs[0][0] + info->stdDevVecs[0][1] + info->stdDevVecs[0][2])/sampleCount;
-                info->stdDev[1] = (info->stdDevVecs[1][0] + info->stdDevVecs[1][1] + info->stdDevVecs[1][2])/sampleCount;
-                info->stdDev[2] = (info->stdDevVecs[2][0] + info->stdDevVecs[2][1] + info->stdDevVecs[2][2])/sampleCount;
-                info->stdDev[3] = (info->stdDevVecs[3][0] + info->stdDevVecs[3][1] + info->stdDevVecs[3][2])/sampleCount;
-                info->stdDev[4] = (info->stdDevVecs[4][0] + info->stdDevVecs[4][1] + info->stdDevVecs[4][2])/sampleCount;
-                info->stdDev[5] =  info->stdDevVecs[5][0]/sampleCount;
-			}
-		}  
-
-        // Free memory
-        cudaFree(CUDASeeds);
-        cudaFree(CUDAConstants);
-        cudaFree(CUDAReturn);
-    }

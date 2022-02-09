@@ -11,48 +11,15 @@
 #include "Camera.h"
 #include "Scene.h"
 #include <skepu>
-
-#include "CUDARender.h"
-
 #include <algorithm>
+
+// CUDA Heaeder File
+#include "CUDAHeader.h"
 
 using namespace std::chrono;
 typedef std::chrono::high_resolution_clock clock_;
 typedef std::chrono::duration<double, std::milli > milli_second_;
 #include <chrono>
-
-struct Constants {
-    float camPos[3], camForward[3], camRight[3], camUp[3];
-	float maxAngle, randSamp;
-	int numShapes, maxDepth;
-	int RESV, RESH;
-	float maxAngleV, maxAngleH, focalLength;
-
-	uint64_t GloRandS[2];
-
-	float backgroundColour[3];
-
-	float shapes[20][16];
-
-	int importantShapes[5];
-	uint numImportantShapes;
-	uint getDenoiserInf;
-};
-
-struct ReturnStruct {
-	float xyz[3];
-	float normal[3];
-	float albedo1[3];
-	float albedo2[3];
-	float worldPos[3];
-	float directLight;
-	uint raysSent;
-};
-
-struct RandomSeeds {
-	long s1;
-	long s2;
-};
 
 class Renderers {
 public:
@@ -100,7 +67,4 @@ public:
 
     void UpdateConstants();
     void UpdateCam();
-
-    Constants constants;
-
 };

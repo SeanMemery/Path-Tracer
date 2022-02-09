@@ -1,5 +1,5 @@
 
-__global__ void skepu_skel_0_SkePURenderers_MapKernel_RenderFunc(ReturnStruct* skepu_output, skepu::PRNG::Placeholder,RandomSeeds *seeds, Constants constants,  size_t skepu_w2, size_t skepu_w3, size_t skepu_w4, size_t skepu_n, size_t skepu_base, skepu::StrideList<2> skepu_strides)
+__global__ void skepu_skel_0_SkePURenderers_MapKernel_RenderFunc(ReturnStruct* skepu_output, skepu::PRNG::Placeholder,RandomSeeds *seeds, Constants sConstants,  size_t skepu_w2, size_t skepu_w3, size_t skepu_w4, size_t skepu_n, size_t skepu_base, skepu::StrideList<2> skepu_strides)
 {
 	size_t skepu_i = blockIdx.x * blockDim.x + threadIdx.x;
 	size_t skepu_global_prng_id = skepu_i;
@@ -15,7 +15,7 @@ if (skepu_strides[1] < 0) { seeds += (-skepu_n + 1) * skepu_strides[1]; }
 skepu_index.row = (skepu_base + skepu_i) / skepu_w2;
 skepu_index.col = (skepu_base + skepu_i) % skepu_w2;
 		
-		auto skepu_res = skepu_userfunction_skepu_skel_0renderFunc_RenderFunc::CU(skepu_index, seeds[skepu_i * skepu_strides[1]], constants);
+		auto skepu_res = skepu_userfunction_skepu_skel_0renderFunc_RenderFunc::CU(skepu_index, seeds[skepu_i * skepu_strides[1]], sConstants);
 		skepu_output[skepu_i * skepu_strides[0]] = skepu_res;
 		skepu_i += skepu_gridSize;
 	}

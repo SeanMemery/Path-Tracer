@@ -1,8 +1,8 @@
 #include "Renderers.h"
 
-    static ReturnStruct RenderFunc(skepu::Index2D ind, RandomSeeds seeds, Constants constants) {
+    static ReturnStruct RenderFunc(skepu::Index2D ind, RandomSeeds seeds,  Constants  sConstants) {
         // Ray
-        float camPos[3] = {constants.camPos[0], constants.camPos[1], constants.camPos[2]};
+        float camPos[3] = { sConstants.camPos[0],  sConstants.camPos[1],  sConstants.camPos[2]};
         float rayPos[3] = {camPos[0], camPos[1], camPos[2]};
 
         // Random seeds
@@ -12,7 +12,7 @@
 
         // Rand Samp
         float rSamps[2] = {0.0f, 0.0f};
-        if (constants.randSamp>0.001f) {
+        if ( sConstants.randSamp>0.001f) {
             // Rand vals
             for (int n = 0; n < 2; n++) {
                 uint64_t s0 = randSeeds[0];
@@ -26,23 +26,23 @@
             }
             rSamps[0] *= 2;rSamps[1] *= 2;
             rSamps[0] -= 1;rSamps[1] -= 1;
-            rSamps[0] *= constants.randSamp;rSamps[1] *= constants.randSamp;
+            rSamps[0] *=  sConstants.randSamp;rSamps[1] *=  sConstants.randSamp;
         }
 
 
-        float back_col[3] = {constants.backgroundColour[0], constants.backgroundColour[1], constants.backgroundColour[2]};
+        float back_col[3] = { sConstants.backgroundColour[0],  sConstants.backgroundColour[1],  sConstants.backgroundColour[2]};
 
         // Pixel Coord
-        float camForward[3] = {constants.camForward[0], constants.camForward[1], constants.camForward[2]};
-        float camRight[3] = {constants.camRight[0], constants.camRight[1], constants.camRight[2]};
+        float camForward[3] = { sConstants.camForward[0],  sConstants.camForward[1],  sConstants.camForward[2]};
+        float camRight[3] = { sConstants.camRight[0],  sConstants.camRight[1],  sConstants.camRight[2]};
 
-        float pY = -constants.maxAngleV + 2*constants.maxAngleV*((float)ind.row/(float)constants.RESV);
-        float pX = -constants.maxAngleH + 2*constants.maxAngleH*((float)ind.col/(float)constants.RESH);
+        float pY = - sConstants.maxAngleV + 2* sConstants.maxAngleV*((float)ind.row/(float) sConstants.RESV);
+        float pX = - sConstants.maxAngleH + 2* sConstants.maxAngleH*((float)ind.col/(float) sConstants.RESH);
 
         float pix[3] = {0,0,0};
-        pix[0] = camPos[0] + constants.camForward[0]*constants.focalLength + constants.camRight[0]*(pX+rSamps[0]) + constants.camUp[0]*(pY+rSamps[1]);
-        pix[1] = camPos[1] + constants.camForward[1]*constants.focalLength + constants.camRight[1]*(pX+rSamps[0]) + constants.camUp[1]*(pY+rSamps[1]);
-        pix[2] = camPos[2] + constants.camForward[2]*constants.focalLength + constants.camRight[2]*(pX+rSamps[0]) + constants.camUp[2]*(pY+rSamps[1]);
+        pix[0] = camPos[0] +  sConstants.camForward[0]* sConstants.focalLength +  sConstants.camRight[0]*(pX+rSamps[0]) +  sConstants.camUp[0]*(pY+rSamps[1]);
+        pix[1] = camPos[1] +  sConstants.camForward[1]* sConstants.focalLength +  sConstants.camRight[1]*(pX+rSamps[0]) +  sConstants.camUp[1]*(pY+rSamps[1]);
+        pix[2] = camPos[2] +  sConstants.camForward[2]* sConstants.focalLength +  sConstants.camRight[2]*(pX+rSamps[0]) +  sConstants.camUp[2]*(pY+rSamps[1]);
 
         float rayDir[3] = {pix[0]-camPos[0], pix[1]-camPos[1], pix[2]-camPos[2]};
         float n1 = sqrt(rayDir[0]*rayDir[0] + rayDir[1]*rayDir[1] + rayDir[2]*rayDir[2]);
@@ -66,7 +66,7 @@
             - append to positions if hit shape, break if not
             - add shape index as 4th component 
 
-            constants.shapes
+             sConstants.shapes
             - pos: 0, 1, 2
             - albedo: 3, 4, 5
             - mat type: 6 (0 lambertian, 1 light, 2 metal, 3 dielectric)
@@ -80,7 +80,7 @@
         int numShapeHit = 0;
         int numRays = 0;
         float dir[3] = {rayDir[0], rayDir[1], rayDir[2]};
-        for (int pos = 0; pos < constants.maxDepth; pos++) {
+        for (int pos = 0; pos <  sConstants.maxDepth; pos++) {
             numRays++;
             int shapeHit;
             float prevPos[3];
@@ -99,25 +99,25 @@
             // Collide with shapes, generating new dirs as needed (i.e. random or specular)
             {
 
-                float E = 0.001f;
+                float E = 0.00001f;
 
                 // Find shape
                 {
                     float t = INFINITY;
-                    for (int ind = 0; ind < constants.numShapes; ind++) {
-                        int shapeType = (int)constants.shapes[ind][7];
+                    for (int ind = 0; ind <  sConstants.numShapes; ind++) {
+                        int shapeType = (int) sConstants.shapes[ind][7];
                         float tempT = INFINITY;
                         // ----- intersect shapes -----
                         // aabb
                         if ( shapeType == 0) {
                             int sign[3] = {dir[0] < 0, dir[1] < 0, dir[2] < 0};
                             float bounds[2][3] = {{0,0,0}, {0,0,0}};
-                            bounds[0][0] = constants.shapes[ind][8];
-                            bounds[0][1] = constants.shapes[ind][9];
-                            bounds[0][2] = constants.shapes[ind][10];
-                            bounds[1][0] = constants.shapes[ind][11];
-                            bounds[1][1] = constants.shapes[ind][12];
-                            bounds[1][2] = constants.shapes[ind][13];
+                            bounds[0][0] =  sConstants.shapes[ind][8];
+                            bounds[0][1] =  sConstants.shapes[ind][9];
+                            bounds[0][2] =  sConstants.shapes[ind][10];
+                            bounds[1][0] =  sConstants.shapes[ind][11];
+                            bounds[1][1] =  sConstants.shapes[ind][12];
+                            bounds[1][2] =  sConstants.shapes[ind][13];
                             float tmin = (bounds[sign[0]][0] - prevPos[0]) / dir[0];
                             float tmax = (bounds[1 - sign[0]][0] - prevPos[0]) / dir[0];
                             float tymin = (bounds[sign[1]][1] - prevPos[1]) / dir[1];
@@ -147,14 +147,14 @@
                         // sphere
                         else if (shapeType == 1) {
                             float L[3] = {0,0,0};
-                            L[0] = constants.shapes[ind][0] - prevPos[0];
-                            L[1] = constants.shapes[ind][1] - prevPos[1];
-                            L[2] = constants.shapes[ind][2] - prevPos[2];
+                            L[0] =  sConstants.shapes[ind][0] - prevPos[0];
+                            L[1] =  sConstants.shapes[ind][1] - prevPos[1];
+                            L[2] =  sConstants.shapes[ind][2] - prevPos[2];
                             float tca = L[0]*dir[0] + L[1]*dir[1] + L[2]*dir[2];
                             if (tca < E)
                                 continue;
                             float dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
-                            float radiusSq = constants.shapes[ind][8] * constants.shapes[ind][8];
+                            float radiusSq =  sConstants.shapes[ind][8] *  sConstants.shapes[ind][8];
                             if (radiusSq - dsq < E)
                                 continue;
                             float thc = sqrt(radiusSq - dsq);
@@ -186,12 +186,12 @@
                     {
                         if (shapeTypeHit == 0) {
                             float bounds[2][3] = {{0,0,0}, {0,0,0}};
-                            bounds[0][0] = constants.shapes[shapeHit][8];
-                            bounds[0][1] = constants.shapes[shapeHit][9];
-                            bounds[0][2] = constants.shapes[shapeHit][10];
-                            bounds[1][0] = constants.shapes[shapeHit][11];
-                            bounds[1][1] = constants.shapes[shapeHit][12];
-                            bounds[1][2] = constants.shapes[shapeHit][13];
+                            bounds[0][0] =  sConstants.shapes[shapeHit][8];
+                            bounds[0][1] =  sConstants.shapes[shapeHit][9];
+                            bounds[0][2] =  sConstants.shapes[shapeHit][10];
+                            bounds[1][0] =  sConstants.shapes[shapeHit][11];
+                            bounds[1][1] =  sConstants.shapes[shapeHit][12];
+                            bounds[1][2] =  sConstants.shapes[shapeHit][13];
                             normals[pos][0] = 0;
                             normals[pos][1] = 0;
                             normals[pos][2] = 0;
@@ -221,9 +221,9 @@
                                 normals[pos][2] = 1;
                         }
                         else if (shapeTypeHit == 1) {
-                            normals[pos][0] = posHit[0] - constants.shapes[shapeHit][0];
-                            normals[pos][1] = posHit[1] - constants.shapes[shapeHit][1];
-                            normals[pos][2] = posHit[2] - constants.shapes[shapeHit][2];
+                            normals[pos][0] = posHit[0] -  sConstants.shapes[shapeHit][0];
+                            normals[pos][1] = posHit[1] -  sConstants.shapes[shapeHit][1];
+                            normals[pos][2] = posHit[2] -  sConstants.shapes[shapeHit][2];
                             float n = sqrt(normals[pos][0]*normals[pos][0] +
                                         normals[pos][1]*normals[pos][1] + 
                                         normals[pos][2]*normals[pos][2]);
@@ -301,11 +301,11 @@
 
                             if material dielectric, choose whether to reflect or refract
                         */
-                        if (constants.shapes[shapeHit][6] == 3) {
+                        if ( sConstants.shapes[shapeHit][6] == 3) {
                             // Dielectric Material
                             shadowRays[pos] = 1;
-                            float blur = constants.shapes[shapeHit][14];
-                            float RI = 1.0 / constants.shapes[shapeHit][15];
+                            float blur =  sConstants.shapes[shapeHit][14];
+                            float RI = 1.0 /  sConstants.shapes[shapeHit][15];
                             float dirIn[3] = {dir[0], dir[1], dir[2]};
                             float refNorm[3] = {normals[pos][0], normals[pos][1], normals[pos][2]};
                             float cosi = dirIn[0]*refNorm[0] + dirIn[1]*refNorm[1] + dirIn[2]*refNorm[2];
@@ -356,12 +356,12 @@
                                 pdfVals[pos] = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;					
                             }
                         }
-                        else if (constants.shapes[shapeHit][6] == 2) {
+                        else if ( sConstants.shapes[shapeHit][6] == 2) {
                             // Metal material
                             shadowRays[pos] = 1;
 
                             float dirIn[3] = {dir[0], dir[1], dir[2]};
-                            float blur = constants.shapes[shapeHit][14];
+                            float blur =  sConstants.shapes[shapeHit][14];
 
                             float prevDirNormalDot = dirIn[0]*normals[pos][0] + 
                                                     dirIn[1]*normals[pos][1] + 
@@ -388,21 +388,21 @@
                             // Check Light Mat
                             bool mixPdf;
                             int impInd, impShape;
-                            if (constants.shapes[shapeHit][6] == 1) {
+                            if ( sConstants.shapes[shapeHit][6] == 1) {
                                 shadowRays[pos] = 1;
                                 mixPdf = false;
                             } else {
                                 // Get importance shape
-                                mixPdf = constants.numImportantShapes > 0;
+                                mixPdf =  sConstants.numImportantShapes > 0;
 
                                 if (mixPdf) { 
-                                    impInd = rands[3] * constants.numImportantShapes * 0.99999f;
-                                    impShape = constants.importantShapes[impInd];
+                                    impInd = rands[3] *  sConstants.numImportantShapes * 0.99999f;
+                                    impShape =  sConstants.importantShapes[impInd];
                                     if (impShape==shapeHit) {
                                         mixPdf = false;
-                                        // mixPdf = constants.numImportantShapes > 1;
-                                        // impInd = (impInd+1) % constants.numImportantShapes;
-                                        // impShape = constants.importantShapes[impInd];
+                                        // mixPdf =  sConstants.numImportantShapes > 1;
+                                        // impInd = (impInd+1) %  sConstants.numImportantShapes;
+                                        // impShape =  sConstants.importantShapes[impInd];
                                     } 
                                 }
                             }
@@ -416,7 +416,7 @@
                                 if (choosePdf == 1) {
                                     // Generate dir towards importance shape
                                     float randPos[3] = {0,0,0};
-                                    if (constants.shapes[impShape][7] == 0) {
+                                    if ( sConstants.shapes[impShape][7] == 0) {
                                         // Gen three new random variables : [0, 1]
                                         float aabbRands[3];
                                         for (int n = 0; n < 3; n++) {
@@ -429,11 +429,11 @@
                                             randSeeds[0] = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
                                             randSeeds[1] = (s1 << 28) | (s1 >> 36);
                                         }
-                                        randPos[0] = (1.0f - aabbRands[0])*constants.shapes[impShape][8]  + aabbRands[0]*constants.shapes[impShape][11];
-                                        randPos[1] = (1.0f - aabbRands[1])*constants.shapes[impShape][9]  + aabbRands[1]*constants.shapes[impShape][12];
-                                        randPos[2] = (1.0f - aabbRands[2])*constants.shapes[impShape][10] + aabbRands[2]*constants.shapes[impShape][13];	
+                                        randPos[0] = (1.0f - aabbRands[0])* sConstants.shapes[impShape][8]  + aabbRands[0]* sConstants.shapes[impShape][11];
+                                        randPos[1] = (1.0f - aabbRands[1])* sConstants.shapes[impShape][9]  + aabbRands[1]* sConstants.shapes[impShape][12];
+                                        randPos[2] = (1.0f - aabbRands[2])* sConstants.shapes[impShape][10] + aabbRands[2]* sConstants.shapes[impShape][13];	
                                     } 
-                                    else if (constants.shapes[impShape][7] == 1) {
+                                    else if ( sConstants.shapes[impShape][7] == 1) {
                                         // Gen three new random variables : [-1, 1]
                                         float sphereRands[3];
                                         for (int n = 0; n < 3; n++) {
@@ -450,9 +450,9 @@
                                                             sphereRands[1]*sphereRands[1] + 
                                                             sphereRands[2]*sphereRands[2]);
                                         sphereRands[0] /= sphereN; sphereRands[1] /= sphereN; sphereRands[2] /= sphereN;
-                                        randPos[0] = constants.shapes[impShape][0] + sphereRands[0]*constants.shapes[impShape][8];
-                                        randPos[1] = constants.shapes[impShape][1] + sphereRands[1]*constants.shapes[impShape][8];
-                                        randPos[2] = constants.shapes[impShape][2] + sphereRands[2]*constants.shapes[impShape][8];
+                                        randPos[0] =  sConstants.shapes[impShape][0] + sphereRands[0]* sConstants.shapes[impShape][8];
+                                        randPos[1] =  sConstants.shapes[impShape][1] + sphereRands[1]* sConstants.shapes[impShape][8];
+                                        randPos[2] =  sConstants.shapes[impShape][2] + sphereRands[2]* sConstants.shapes[impShape][8];
                                     }
 
                                     float directDir[3];
@@ -467,34 +467,34 @@
                                     // Need to send shadow ray to see if point is in path of direct light
                                     bool shadowRayHit = false;
 
-                                    for (int ind = 0; ind < constants.numShapes; ind++) {
+                                    for (int ind = 0; ind <  sConstants.numShapes; ind++) {
                                         if (ind == impShape)
                                             continue;
-                                        int shapeType = (int)constants.shapes[ind][7];
+                                        int shapeType = (int) sConstants.shapes[ind][7];
                                         float tempT = INFINITY;
                                         // ----- intersect shapes -----
                                         // aabb
                                         if ( shapeType == 0) {
-                                            int sign[3] = {dir[0] < 0, dir[1] < 0, dir[2] < 0};
+                                            int sign[3] = {directDir[0] < 0, directDir[1] < 0, directDir[2] < 0};
                                             float bounds[2][3];
-                                            bounds[0][0] = constants.shapes[ind][8];
-                                            bounds[0][1] = constants.shapes[ind][9];
-                                            bounds[0][2] = constants.shapes[ind][10];
-                                            bounds[1][0] = constants.shapes[ind][11];
-                                            bounds[1][1] = constants.shapes[ind][12];
-                                            bounds[1][2] = constants.shapes[ind][13];
-                                            float tmin = (bounds[sign[0]][0] - posHit[0]) / dir[0];
-                                            float tmax = (bounds[1 - sign[0]][0] - posHit[0]) / dir[0];
-                                            float tymin = (bounds[sign[1]][1] - posHit[1]) / dir[1];
-                                            float tymax = (bounds[1 - sign[1]][1] - posHit[1]) / dir[1];
+                                            bounds[0][0] =  sConstants.shapes[ind][8];
+                                            bounds[0][1] =  sConstants.shapes[ind][9];
+                                            bounds[0][2] =  sConstants.shapes[ind][10];
+                                            bounds[1][0] =  sConstants.shapes[ind][11];
+                                            bounds[1][1] =  sConstants.shapes[ind][12];
+                                            bounds[1][2] =  sConstants.shapes[ind][13];
+                                            float tmin = (bounds[sign[0]][0] - posHit[0]) / directDir[0];
+                                            float tmax = (bounds[1 - sign[0]][0] - posHit[0]) / directDir[0];
+                                            float tymin = (bounds[sign[1]][1] - posHit[1]) / directDir[1];
+                                            float tymax = (bounds[1 - sign[1]][1] - posHit[1]) / directDir[1];
                                             if ((tmin > tymax) || (tymin > tmax))
                                                 continue;
                                             if (tymin > tmin)
                                                 tmin = tymin;
                                             if (tymax < tmax)
                                                 tmax = tymax;
-                                            float tzmin = (bounds[sign[2]][2] - posHit[2]) / dir[2];
-                                            float tzmax = (bounds[1 - sign[2]][2] - posHit[2]) / dir[2];
+                                            float tzmin = (bounds[sign[2]][2] - posHit[2]) / directDir[2];
+                                            float tzmax = (bounds[1 - sign[2]][2] - posHit[2]) / directDir[2];
                                             if ((tmin > tzmax) || (tzmin > tmax))
                                                 continue;
                                             if (tzmin > tmin)
@@ -507,14 +507,14 @@
                                         // sphere
                                         else if (shapeType == 1) {
                                             float L[3];
-                                            L[0] = constants.shapes[ind][0] - posHit[0];
-                                            L[1] = constants.shapes[ind][1] - posHit[1];
-                                            L[2] = constants.shapes[ind][2] - posHit[2];
-                                            float tca = L[0]*dir[0] + L[1]*dir[1] + L[2]*dir[2];
+                                            L[0] =  sConstants.shapes[ind][0] - posHit[0];
+                                            L[1] =  sConstants.shapes[ind][1] - posHit[1];
+                                            L[2] =  sConstants.shapes[ind][2] - posHit[2];
+                                            float tca = L[0]*directDir[0] + L[1]*directDir[1] + L[2]*directDir[2];
                                             if (tca < E)
                                                 continue;
                                             float dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
-                                            float radiusSq = constants.shapes[ind][8] * constants.shapes[ind][8];
+                                            float radiusSq =  sConstants.shapes[ind][8] *  sConstants.shapes[ind][8];
                                             if (radiusSq - dsq < E)
                                                 continue;
                                             float thc = sqrt(radiusSq - dsq);
@@ -531,10 +531,7 @@
 
                                     if (!shadowRayHit) {
                                         float cosine = fabs(directDir[0]*randDir[0] +directDir[1]*randDir[1] +directDir[2]*randDir[2]);
-                                        if (cosine < 0.01) {
-                                            p0 = 1 / M_PI;
-                                        }
-                                        else {
+                                        if (cosine > 0.01f) {
                                             shadowRays[pos]=1; 
                                             dir[0] = directDir[0];
                                             dir[1] = directDir[1];
@@ -551,12 +548,12 @@
                                 }
                                 // 1
                                 float p1 = 0;
-                                if (constants.shapes[impShape][7] == 0) {
+                                if ( sConstants.shapes[impShape][7] == 0) {
                                     // AABB pdf val
                                     float areaSum = 0;
-                                    float xDiff = constants.shapes[impShape][11] - constants.shapes[impShape][8];
-                                    float yDiff = constants.shapes[impShape][12] - constants.shapes[impShape][9];
-                                    float zDiff = constants.shapes[impShape][13] - constants.shapes[impShape][10];
+                                    float xDiff =  sConstants.shapes[impShape][11] -  sConstants.shapes[impShape][8];
+                                    float yDiff =  sConstants.shapes[impShape][12] -  sConstants.shapes[impShape][9];
+                                    float zDiff =  sConstants.shapes[impShape][13] -  sConstants.shapes[impShape][10];
                                     areaSum += xDiff * yDiff * 2.0f;
                                     areaSum += zDiff * yDiff * 2.0f;
                                     areaSum += xDiff * zDiff * 2.0f;
@@ -566,9 +563,9 @@
                                     cosine = cosine < 0.0001f ? 0.0001f : cosine;
 
                                     float diff[3];
-                                    diff[0] = constants.shapes[impShape][0] - posHit[0];
-                                    diff[1] = constants.shapes[impShape][1] - posHit[1];
-                                    diff[2] = constants.shapes[impShape][2] - posHit[2];
+                                    diff[0] =  sConstants.shapes[impShape][0] - posHit[0];
+                                    diff[1] =  sConstants.shapes[impShape][1] - posHit[1];
+                                    diff[2] =  sConstants.shapes[impShape][2] - posHit[2];
                                     float dirLen = sqrt(diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]);
 
 
@@ -576,20 +573,20 @@
                                     //p1 = 1 / (cosine * areaSum);
                                     p1 = dirLen / (cosine * areaSum);
 
-                                } else if (constants.shapes[impShape][7] == 1) {
+                                } else if ( sConstants.shapes[impShape][7] == 1) {
                                     // Sphere pdf val
-                                    float diff[3] = {constants.shapes[impShape][0]-posHit[0], 
-                                                    constants.shapes[impShape][1]-posHit[1], 
-                                                    constants.shapes[impShape][2]-posHit[2]};
+                                    float diff[3] = { sConstants.shapes[impShape][0]-posHit[0], 
+                                                     sConstants.shapes[impShape][1]-posHit[1], 
+                                                     sConstants.shapes[impShape][2]-posHit[2]};
                                     auto distance_squared = diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2];
-                                    auto cos_theta_max = sqrt(1 - constants.shapes[impShape][8] * constants.shapes[impShape][8] / distance_squared);
+                                    auto cos_theta_max = sqrt(1 -  sConstants.shapes[impShape][8] *  sConstants.shapes[impShape][8] / distance_squared);
                                     // NaN check
                                     cos_theta_max = (cos_theta_max != cos_theta_max) ? 0.9999f : cos_theta_max;
                                     auto solid_angle = M_PI * (1.0f - cos_theta_max) *2.0f;
 
                                     // Sphere needs magic number for pdf calc, TODO: LOOK INTO, was too dark before
                                     //p1 = 1 / (solid_angle );
-                                    p1 = constants.shapes[impShape][8] / (solid_angle * sqrt(distance_squared)*4.0f);
+                                    p1 =  sConstants.shapes[impShape][8] / (solid_angle * sqrt(distance_squared)*4.0f);
                                 }
 
                                 pdfVals[pos] = 0.5f*p0 + 0.5f*p1;
@@ -621,11 +618,11 @@
 
             int shapeHit = (int)rayPositions[pos][3];
 
-            float albedo[3] = {constants.shapes[shapeHit][3], 
-                                constants.shapes[shapeHit][4], 
-                                constants.shapes[shapeHit][5]};
-            int matType = (int)constants.shapes[shapeHit][6];	
-            int shapeType = (int)constants.shapes[shapeHit][7];
+            float albedo[3] = { sConstants.shapes[shapeHit][3], 
+                                 sConstants.shapes[shapeHit][4], 
+                                 sConstants.shapes[shapeHit][5]};
+            int matType = (int) sConstants.shapes[shapeHit][6];	
+            int shapeType = (int) sConstants.shapes[shapeHit][7];
         
             float normal[3] = {normals[pos][0], normals[pos][1], normals[pos][2]};
 
@@ -659,7 +656,7 @@
                                   albedo[1]*finalCol[1],  
                                   albedo[2]*finalCol[2]}; 
 
-            float directLightMult = shadowRays[pos]==1 && constants.numImportantShapes>1 ? constants.numImportantShapes : 1;
+            float directLightMult = shadowRays[pos]==1 &&  sConstants.numImportantShapes>1 ?  sConstants.numImportantShapes : 1;
 
             float pdfs = scattering_pdf / pdf_val;
             finalCol[0] = emittance[0] + multVecs[0] * pdfs * directLightMult;
@@ -670,19 +667,19 @@
         ret.xyz[0] = finalCol[0];
         ret.xyz[1] = finalCol[1];
         ret.xyz[2] = finalCol[2];
-        if (constants.getDenoiserInf == 1) {
+        if ( sConstants.getDenoiserInf == 1) {
             ret.normal[0] = normals[0][0];
             ret.normal[1] = normals[0][1];
             ret.normal[2] = normals[0][2];
-            ret.albedo1[0] = constants.shapes[(int)rayPositions[0][3]][3];
-            ret.albedo1[1] = constants.shapes[(int)rayPositions[0][3]][4];
-            ret.albedo1[2] = constants.shapes[(int)rayPositions[0][3]][5];
-            ret.albedo2[0] = constants.shapes[(int)rayPositions[1][3]][3];
-            ret.albedo2[1] = constants.shapes[(int)rayPositions[1][3]][4];
-            ret.albedo2[2] = constants.shapes[(int)rayPositions[1][3]][5];
+            ret.albedo1[0] =  sConstants.shapes[(int)rayPositions[0][3]][3];
+            ret.albedo1[1] =  sConstants.shapes[(int)rayPositions[0][3]][4];
+            ret.albedo1[2] =  sConstants.shapes[(int)rayPositions[0][3]][5];
+            ret.albedo2[0] =  sConstants.shapes[(int)rayPositions[1][3]][3];
+            ret.albedo2[1] =  sConstants.shapes[(int)rayPositions[1][3]][4];
+            ret.albedo2[2] =  sConstants.shapes[(int)rayPositions[1][3]][5];
             ret.directLight = 0.0f;
-            for (int c = 0; c<constants.maxDepth; c++)
-                ret.directLight += (float)shadowRays[c] / (float)constants.maxDepth;
+            for (int c = 0; c< sConstants.maxDepth; c++)
+                ret.directLight += (float)shadowRays[c] / (float) sConstants.maxDepth;
             ret.worldPos[0] = rayPositions[0][0];
             ret.worldPos[1] = rayPositions[0][1];
             ret.worldPos[2] = rayPositions[0][2];

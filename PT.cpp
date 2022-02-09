@@ -13,6 +13,7 @@ ImGuiWindowFlags window_flags;
 Camera cam;
 Denoiser denoiser;
 Renderers renderer;
+Constants constants;
 
 // Denoising
 DenoiserNN denoiserNN;

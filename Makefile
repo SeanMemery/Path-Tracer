@@ -116,7 +116,7 @@ PT_CPP_FILES = $(addprefix $(PT_SOURCE)/,$(addsuffix .cpp, $(PT)))
 FNAMES = -fnames
 FNAMES += " __builtin_inff"
 
-CUDA_FILES = SkePURenderers.cu SkePUDenoiser.cu SkePUDenoiserNN.cu CUDARender.cu
+CUDA_FILES = SkePURenderers.cu SkePUDenoiser.cu SkePUDenoiserNN.cu CUDARender.cu CUDADenoiser.cu CUDADenoiserNN.cu
 
 
 #----------------------------	

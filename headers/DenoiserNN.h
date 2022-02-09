@@ -10,6 +10,9 @@
 #include <sstream>
 #include <string>
 
+// CUDA Include 
+#include "CUDAHeader.h"
+
 using namespace std::chrono;
 typedef std::chrono::high_resolution_clock clock_;
 typedef std::chrono::duration<double, std::milli > milli_second_;
@@ -151,7 +154,7 @@ public:
     // Forward Prop
     void CPUForwardProp();
     void OMPForwardProp();
-    void CUDAForwardProp(){}
+    void CUDAForwardProp(){ CUDADenoiserNN::ForwardProp(); }
     void OpenGLForwardProp(){}
     void SkePUForwardProp();
 
@@ -160,7 +163,7 @@ public:
     void CPUBackProp();
     vec3 OMPFilterDerivative(int j, int i, int var);
     void OMPBackProp();
-    void CUDABackProp(){}
+    void CUDABackProp(){ CUDADenoiserNN::BackProp();  }
     void OpenGLBackProp(){}
     void SkePUBackProp();
 

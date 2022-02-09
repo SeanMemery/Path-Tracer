@@ -23,3 +23,6 @@
     - if hit something that isnt the light, then carry on that direction
     - if hit nothing or hit light then change direction towards light
     - makes no sense !!!! 
+    - Looking at it again, doesnt look right, going back to directDir
+
+7. CUDA back prop doesnt seem to be updating weights, need to debug 

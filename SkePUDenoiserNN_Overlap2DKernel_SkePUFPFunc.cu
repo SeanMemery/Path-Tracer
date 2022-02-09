@@ -1,5 +1,5 @@
 
-__global__ void SkePUDenoiserNN_Overlap2DKernel_SkePUFPFunc_conv_cuda_2D_kernel(ForPropOut* skepu_output, skepu::PRNG::Placeholder,struct ForPropIn *skepu_input, SkePUFPConstants constants, 
+__global__ void SkePUDenoiserNN_Overlap2DKernel_SkePUFPFunc_conv_cuda_2D_kernel(ForPropOut* skepu_output, skepu::PRNG::Placeholder,struct ForPropIn *skepu_input, SkePUFPConstants sConstants, 
 	const size_t skepu_in_rows, const size_t skepu_in_cols,
 	const size_t skepu_out_rows, const size_t skepu_out_cols,
 	size_t skepu_overlap_y, size_t skepu_overlap_x,
@@ -67,7 +67,7 @@ __global__ void SkePUDenoiserNN_Overlap2DKernel_SkePUFPFunc_conv_cuda_2D_kernel(
 		size_t skepu_base = 0;
 		
 		
-		auto skepu_res = skepu_userfunction_skepu_skel_2convol_SkePUFPFunc::CU({(int)skepu_overlap_y, (int)skepu_overlap_x, skepu_sharedCols, &sdata_skepu_skel_2[(threadIdx.y + skepu_overlap_y) * skepu_sharedCols + (threadIdx.x + skepu_overlap_x)]}, constants);
+		auto skepu_res = skepu_userfunction_skepu_skel_2convol_SkePUFPFunc::CU({(int)skepu_overlap_y, (int)skepu_overlap_x, skepu_sharedCols, &sdata_skepu_skel_2[(threadIdx.y + skepu_overlap_y) * skepu_sharedCols + (threadIdx.x + skepu_overlap_x)]}, sConstants);
 		skepu_output[skepu_i] = skepu_res;
 	}
 }
