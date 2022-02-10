@@ -882,6 +882,9 @@ void DenoiserNN::SkePUForwardProp() {
     auto out = skepu::Matrix<ForPropOut>(yRes, xRes);
     SkePUFPConstants sConstants;
 
+    delete sFeatures;
+    sFeatures = new SecondaryFeatures[yRes*xRes];
+
     // Set sConstants
     int w;
     sConstants.samples = sampleCount;
@@ -900,12 +903,6 @@ void DenoiserNN::SkePUForwardProp() {
         in[ind].alb2        = (albedo2[ind].x    + albedo2[ind].y  + albedo2[ind].z)  / (3.0f * sampleCount);
         in[ind].worldPos    = (worldPos[ind].x   + worldPos[ind].y + worldPos[ind].z) / (3.0f * sampleCount);
         in[ind].directLight = directLight[ind].x / sampleCount;
-
-        pFeatures[ind].normal      = in[ind].normal;
-        pFeatures[ind].alb1        = in[ind].alb1;
-        pFeatures[ind].alb2        = in[ind].alb2;
-        pFeatures[ind].worldPos    = in[ind].worldPos;
-        pFeatures[ind].directLight = in[ind].directLight;
 
         in[ind].stdDev[0] = denoisingInf[ind].stdDev[0];
         in[ind].stdDev[1] = denoisingInf[ind].stdDev[1];
@@ -987,6 +984,8 @@ vec3 DenoiserNN::CPUFilterDerivative(int j, int i, int var) {
     vec3  jWorldPos, iWorldPos ;
     float jDirectLight, iDirectLight;
 
+    float paramDiffs[7];
+
     // For all pixels j around i
     for (int j1 = -N; j1 <= N; j1++) {
         for (int i1 = -N; i1 <= N; i1++) {
@@ -1018,32 +1017,34 @@ vec3 DenoiserNN::CPUFilterDerivative(int j, int i, int var) {
             jDirectLight = directLight[jIndex].x / sampleCount;
 
             // Index d value
-            dVals[0] = (pow(j1-j,2)+pow(i1-i,2)) / (2.0f * info.variances[0] + 0.000001f);
+            paramDiffs[0] = pow(j,2)+pow(i,2);
+            dVals[0] = paramDiffs[0] / (2.0f * info.variances[0] + 0.000001f);
             // Colour d value
-            dVals[1] = (pow(iCol.x - jCol.x,2)+pow(iCol.y - jCol.y,2) + pow(iCol.z - jCol.z,2)) 
-            / (2.0f * info.variances[1] * (info.stdDev[0] + infoj.stdDev[0])  + 0.000001f);
+            paramDiffs[1] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
+            dVals[1] = paramDiffs[1] / (2.0f * info.variances[1] * (info.stdDev[0] + infoj.stdDev[0])  + 0.000001f);
             // Normal d value
-            dVals[2] = (pow(iNormal.x - jNormal.x,2)+pow(iNormal.y - jNormal.y,2) + pow(iNormal.z - jNormal.z,2)) 
-            / (2.0f * info.variances[2] * info.stdDev[1]  + 0.000001f);
+            paramDiffs[2] = pow(iNormal[0] - jNormal[0],2)+pow(iNormal[1] - jNormal[1],2) + pow(iNormal[2] - jNormal[2],2);
+            dVals[2] = paramDiffs[2] / (2.0f * info.variances[2] * info.stdDev[1]  + 0.000001f);
             // Alb1 d value
-            dVals[3] = (pow(iAlbedo1.x - jAlbedo1.x,2)+pow(iAlbedo1.y - jAlbedo1.y,2) + pow(iAlbedo1.z - jAlbedo1.z,2)) 
-            / (2.0f * info.variances[3] * info.stdDev[2]  + 0.000001f);
+            paramDiffs[3] = pow(iAlbedo1[0] - jAlbedo1[0],2)+pow(iAlbedo1[1] - jAlbedo1[1],2) + pow(iAlbedo1[2] - jAlbedo1[2],2);
+            dVals[3] = paramDiffs[3] / (2.0f * info.variances[3] * info.stdDev[2]  + 0.000001f);
             // Alb2 d value
-            dVals[4] = (pow(iAlbedo2.x - jAlbedo2.x,2)+pow(iAlbedo2.y - jAlbedo2.y,2) + pow(iAlbedo2.z - jAlbedo2.z,2)) 
-            / (2.0f * info.variances[4] * info.stdDev[3]  + 0.000001f);
+            paramDiffs[4] = pow(iAlbedo2[0] - jAlbedo2[0],2)+pow(iAlbedo2[1] - jAlbedo2[1],2) + pow(iAlbedo2[2] - jAlbedo2[2],2);
+            dVals[4] = paramDiffs[4] / (2.0f * info.variances[4] * info.stdDev[3]  + 0.000001f);
             // worldPos d value
-            dVals[5] = (pow(iWorldPos.x - jWorldPos.x,2)+pow(iWorldPos.y - jWorldPos.y,2) + pow(iWorldPos.z - jWorldPos.z,2)) 
-            / (2.0f * info.variances[5] * info.stdDev[4]  + 0.000001f);
+            paramDiffs[5] = pow(iWorldPos[0] - jWorldPos[0],2)+pow(iWorldPos[1] - jWorldPos[1],2) + pow(iWorldPos[2] - jWorldPos[2],2);
+            dVals[5] = paramDiffs[5] / (2.0f * info.variances[5] * info.stdDev[4]  + 0.000001f);
             // directLight d value
-            dVals[6] = pow(iDirectLight - jDirectLight,2) / (2.0f * info.variances[6] * info.stdDev[5] + 0.000001f);
+            paramDiffs[6] = pow(iDirectLight - jDirectLight,2);
+            dVals[6] = paramDiffs[6] / (2.0f * info.variances[6] * info.stdDev[5] + 0.000001f);
 
 
-            for (dVal=0;dVal<7;dVal++) {
-                dVals[dVal] += 0.000001f;
+            dValMult = 1.0f;
+            for (int dVal=0;dVal<7;dVal++) {
                 dValMult *= exp(-dVals[dVal]) + 0.000001f;;
             }
 
-            weightOverParam = dValMult * dVals[var] * 2.0f / info.variances[var];
+            weightOverParam = dValMult * paramDiffs[var] / pow(info.variances[var],3);
 
             fDeriv += vecSum*weightOverParam;
 
@@ -1117,6 +1118,8 @@ vec3 DenoiserNN::OMPFilterDerivative(int j, int i, int var) {
     vec3 iWorldPos =    worldPos[iIndex]      / sampleCount;
     float iDirectLight = directLight[iIndex].x / sampleCount;
 
+    float paramDiffs[7];
+
     // For all pixels j around i
     #pragma omp parallel for
     for (int j1 = -N; j1 <= N; j1++) {
@@ -1145,33 +1148,34 @@ vec3 DenoiserNN::OMPFilterDerivative(int j, int i, int var) {
             float jDirectLight = directLight[jIndex].x / sampleCount;
 
             // Index d value
-            dVals[0] = (pow(j1-j,2)+pow(i1-i,2)) / (2.0f * info.variances[0] + 0.000001f);
+            paramDiffs[0] = pow(j,2)+pow(i,2);
+            dVals[0] = paramDiffs[0] / (2.0f * info.variances[0] + 0.000001f);
             // Colour d value
-            dVals[1] = (pow(iCol.x - jCol.x,2)+pow(iCol.y - jCol.y,2) + pow(iCol.z - jCol.z,2)) 
-            / (2.0f * info.variances[1] * (info.stdDev[0] + infoj.stdDev[0])  + 0.000001f);
+            paramDiffs[1] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
+            dVals[1] = paramDiffs[1] / (2.0f * info.variances[1] * (info.stdDev[0] + infoj.stdDev[0])  + 0.000001f);
             // Normal d value
-            dVals[2] = (pow(iNormal.x - jNormal.x,2)+pow(iNormal.y - jNormal.y,2) + pow(iNormal.z - jNormal.z,2)) 
-            / (2.0f * info.variances[2] * info.stdDev[1]  + 0.000001f);
+            paramDiffs[2] = pow(iNormal[0] - jNormal[0],2)+pow(iNormal[1] - jNormal[1],2) + pow(iNormal[2] - jNormal[2],2);
+            dVals[2] = paramDiffs[2] / (2.0f * info.variances[2] * info.stdDev[1]  + 0.000001f);
             // Alb1 d value
-            dVals[3] = (pow(iAlbedo1.x - jAlbedo1.x,2)+pow(iAlbedo1.y - jAlbedo1.y,2) + pow(iAlbedo1.z - jAlbedo1.z,2)) 
-            / (2.0f * info.variances[3] * info.stdDev[2]  + 0.000001f);
+            paramDiffs[3] = pow(iAlbedo1[0] - jAlbedo1[0],2)+pow(iAlbedo1[1] - jAlbedo1[1],2) + pow(iAlbedo1[2] - jAlbedo1[2],2);
+            dVals[3] = paramDiffs[3] / (2.0f * info.variances[3] * info.stdDev[2]  + 0.000001f);
             // Alb2 d value
-            dVals[4] = (pow(iAlbedo2.x - jAlbedo2.x,2)+pow(iAlbedo2.y - jAlbedo2.y,2) + pow(iAlbedo2.z - jAlbedo2.z,2)) 
-            / (2.0f * info.variances[4] * info.stdDev[3]  + 0.000001f);
+            paramDiffs[4] = pow(iAlbedo2[0] - jAlbedo2[0],2)+pow(iAlbedo2[1] - jAlbedo2[1],2) + pow(iAlbedo2[2] - jAlbedo2[2],2);
+            dVals[4] = paramDiffs[4] / (2.0f * info.variances[4] * info.stdDev[3]  + 0.000001f);
             // worldPos d value
-            dVals[5] = (pow(iWorldPos.x - jWorldPos.x,2)+pow(iWorldPos.y - jWorldPos.y,2) + pow(iWorldPos.z - jWorldPos.z,2)) 
-            / (2.0f * info.variances[5] * info.stdDev[4]  + 0.000001f);
+            paramDiffs[5] = pow(iWorldPos[0] - jWorldPos[0],2)+pow(iWorldPos[1] - jWorldPos[1],2) + pow(iWorldPos[2] - jWorldPos[2],2);
+            dVals[5] = paramDiffs[5] / (2.0f * info.variances[5] * info.stdDev[4]  + 0.000001f);
             // directLight d value
-            dVals[6] = pow(iDirectLight - jDirectLight,2) / (2.0f * info.variances[6] * info.stdDev[5] + 0.000001f);
+            paramDiffs[6] = pow(iDirectLight - jDirectLight,2);
+            dVals[6] = paramDiffs[6] / (2.0f * info.variances[6] * info.stdDev[5] + 0.000001f);
 
 
             float dValMult = 1.0f;
             for (int dVal=0;dVal<7;dVal++) {
-                dVals[dVal] += 0.000001f;
                 dValMult *= exp(-dVals[dVal]) + 0.000001f;;
             }
 
-            float weightOverParam = dValMult * dVals[var] * 2.0f / info.variances[var];
+            float weightOverParam = dValMult * paramDiffs[var] / pow(info.variances[var],3);
 
             fDeriv += vecSum*weightOverParam;
 
@@ -1271,6 +1275,8 @@ static FilterDerivOut SkePUFDFunc(skepu::Region2D<FilterDerivIn> r, int samples)
         fDeriv.paramXYZ[var][2] = 0.0f;
     }
 
+    float paramDiffs[7];
+
     // For all pixels j around i
     for (int j = -r.oj; j <= r.oj; j++) {
         for (int i = -r.oi; i <= r.oi; i++) {
@@ -1290,33 +1296,34 @@ static FilterDerivOut SkePUFDFunc(skepu::Region2D<FilterDerivIn> r, int samples)
 
 
             // Index d value
-            dVals[0] = (pow(j,2)+pow(i,2)) / (2.0f * r(0,0).variances[0] + 0.000001f);
+            paramDiffs[0] = pow(j,2)+pow(i,2);
+            dVals[0] = paramDiffs[0] / (2.0f * r(0,0).variances[0] + 0.000001f);
             // Colour d value
-            dVals[1] = (pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2)) 
-            / (2.0f * r(0,0).variances[1] * (r(0,0).stdDev[0] + r(j,i).stdDev[0])  + 0.000001f);
+            paramDiffs[0] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
+            dVals[1] = paramDiffs[1] / (2.0f * r(0,0).variances[1] * (r(0,0).stdDev[0] + r(j,i).stdDev[0])  + 0.000001f);
             // Normal d value
-            dVals[2] = (pow(iNormal[0] - jNormal[0],2)+pow(iNormal[1] - jNormal[1],2) + pow(iNormal[2] - jNormal[2],2)) 
-            / (2.0f * r(0,0).variances[2] * r(0,0).stdDev[1]  + 0.000001f);
+            paramDiffs[2] = pow(iNormal[0] - jNormal[0],2)+pow(iNormal[1] - jNormal[1],2) + pow(iNormal[2] - jNormal[2],2);
+            dVals[2] = paramDiffs[2] / (2.0f * r(0,0).variances[2] * r(0,0).stdDev[1]  + 0.000001f);
             // Alb1 d value
-            dVals[3] = (pow(iAlbedo1[0] - jAlbedo1[0],2)+pow(iAlbedo1[1] - jAlbedo1[1],2) + pow(iAlbedo1[2] - jAlbedo1[2],2)) 
-            / (2.0f * r(0,0).variances[3] * r(0,0).stdDev[2]  + 0.000001f);
+            paramDiffs[3] = pow(iAlbedo1[0] - jAlbedo1[0],2)+pow(iAlbedo1[1] - jAlbedo1[1],2) + pow(iAlbedo1[2] - jAlbedo1[2],2);
+            dVals[3] = paramDiffs[3] / (2.0f * r(0,0).variances[3] * r(0,0).stdDev[2]  + 0.000001f);
             // Alb2 d value
-            dVals[4] = (pow(iAlbedo2[0] - jAlbedo2[0],2)+pow(iAlbedo2[1] - jAlbedo2[1],2) + pow(iAlbedo2[2] - jAlbedo2[2],2)) 
-            / (2.0f * r(0,0).variances[4] * r(0,0).stdDev[3]  + 0.000001f);
+            paramDiffs[4] = pow(iAlbedo2[0] - jAlbedo2[0],2)+pow(iAlbedo2[1] - jAlbedo2[1],2) + pow(iAlbedo2[2] - jAlbedo2[2],2);
+            dVals[4] = paramDiffs[4] / (2.0f * r(0,0).variances[4] * r(0,0).stdDev[3]  + 0.000001f);
             // worldPos d value
-            dVals[5] = (pow(iWorldPos[0] - jWorldPos[0],2)+pow(iWorldPos[1] - jWorldPos[1],2) + pow(iWorldPos[2] - jWorldPos[2],2)) 
-            / (2.0f * r(0,0).variances[5] * r(0,0).stdDev[4]  + 0.000001f);
+            paramDiffs[5] = pow(iWorldPos[0] - jWorldPos[0],2)+pow(iWorldPos[1] - jWorldPos[1],2) + pow(iWorldPos[2] - jWorldPos[2],2);
+            dVals[5] = paramDiffs[5] / (2.0f * r(0,0).variances[5] * r(0,0).stdDev[4]  + 0.000001f);
             // directLight d value
-            dVals[6] = pow(iDirectLight - jDirectLight,2) / (2.0f * r(0,0).variances[6] * r(0,0).stdDev[5] + 0.000001f);
+            paramDiffs[6] = pow(iDirectLight - jDirectLight,2);
+            dVals[6] = paramDiffs[6] / (2.0f * r(0,0).variances[6] * r(0,0).stdDev[5] + 0.000001f);
 
-
+            dValMult = 1.0f;
             for (dVal=0;dVal<7;dVal++) {
-                dVals[dVal] += 0.000001f;
                 dValMult *= exp(-dVals[dVal]) + 0.000001f;;
             }
 
             for (var=0; var<7; var++) {
-                weightOverParam = dValMult * dVals[var] * 2.0f / r(0,0).variances[var];
+                weightOverParam = dValMult * paramDiffs[var] / pow(r(0,0).variances[var],3);
                 fDeriv.paramXYZ[var][0] += vecSum[0]*weightOverParam;
                 fDeriv.paramXYZ[var][1] += vecSum[1]*weightOverParam;
                 fDeriv.paramXYZ[var][2] += vecSum[2]*weightOverParam;

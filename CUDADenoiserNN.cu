@@ -12,7 +12,8 @@ struct FPConstants {
 };
 struct BPConstants {
     int RESH, RESV;
-    int samples, learningRate, denoisingN;
+    int samples, denoisingN;
+    float learningRate;
 };
 
 __global__
@@ -115,11 +116,11 @@ void CUDAForwardPropFunc(ForPropIn* in, ForPropOut* out, FPConstants* sConstants
             for ( i = -3; i <= 3; i++) { 
                 _i = pi + i < 0 ? 0 : (pi + i >= sConstants->RESH ? sConstants->RESH-1 : pi + i);
                 _index = _j*sConstants->RESH + _i;
-                ret->sdBlock[0] += pow((in[_index].normal      - ret->meansBlock[0]),2); 
-                ret->sdBlock[1] += pow((in[_index].alb1        - ret->meansBlock[1]),2); 
-                ret->sdBlock[2] += pow((in[_index].alb2        - ret->meansBlock[2]),2); 
-                ret->sdBlock[3] += pow((in[_index].worldPos    - ret->meansBlock[3]),2); 
-                ret->sdBlock[4] += pow((in[_index].directLight - ret->meansBlock[4]),2); 
+                ret->sdBlock[0] += powf((in[_index].normal      - ret->meansBlock[0]),2); 
+                ret->sdBlock[1] += powf((in[_index].alb1        - ret->meansBlock[1]),2); 
+                ret->sdBlock[2] += powf((in[_index].alb2        - ret->meansBlock[2]),2); 
+                ret->sdBlock[3] += powf((in[_index].worldPos    - ret->meansBlock[3]),2); 
+                ret->sdBlock[4] += powf((in[_index].directLight - ret->meansBlock[4]),2); 
             }
         }
         ret->sdBlock[0] = sqrt(ret->sdBlock[0] / 49.0f);
@@ -315,6 +316,8 @@ void CUDADenoiserNN::ForwardProp() {
     FPConstants* CUDAConstants;
 
     int numPixels = xRes*yRes;
+    delete denoiserNN.sFeatures;
+    denoiserNN.sFeatures = new SecondaryFeatures[numPixels];
 
     cudaMallocManaged(&CUDAIn,  numPixels*sizeof(ForPropIn));
     cudaMallocManaged(&CUDAOut, numPixels*sizeof(ForPropOut));
@@ -340,12 +343,6 @@ void CUDADenoiserNN::ForwardProp() {
         CUDAIn[ind].alb2        = (albedo2[ind].x    + albedo2[ind].y  + albedo2[ind].z)  / (3.0f * sampleCount);
         CUDAIn[ind].worldPos    = (worldPos[ind].x   + worldPos[ind].y + worldPos[ind].z) / (3.0f * sampleCount);
         CUDAIn[ind].directLight = directLight[ind].x / sampleCount;
-
-        denoiserNN.pFeatures[ind].normal      = CUDAIn[ind].normal;
-        denoiserNN.pFeatures[ind].alb1        = CUDAIn[ind].alb1;
-        denoiserNN.pFeatures[ind].alb2        = CUDAIn[ind].alb2;
-        denoiserNN.pFeatures[ind].worldPos    = CUDAIn[ind].worldPos;
-        denoiserNN.pFeatures[ind].directLight = CUDAIn[ind].directLight;
 
         CUDAIn[ind].stdDev[0] = denoisingInf[ind].stdDev[0];
         CUDAIn[ind].stdDev[1] = denoisingInf[ind].stdDev[1];
@@ -445,6 +442,8 @@ void CUDAFilterDerivFunc(FilterDerivIn* in, FilterDerivOut* out, BPConstants* sC
         fDeriv->paramXYZ[var][2] = 0.0f;
     }
 
+    float paramDiffs[7];
+
     // For all pixels j around i
     int _j, _i, _index;
     for (int j = -sConstants->denoisingN; j <= sConstants->denoisingN; j++) {
@@ -466,35 +465,35 @@ void CUDAFilterDerivFunc(FilterDerivIn* in, FilterDerivOut* out, BPConstants* sC
             }
             jDirectLight = in[_index].directLight / samples;
 
-
             // Index d value
-            dVals[0] = (pow(j,2)+pow(i,2)) / (2.0f * in[pixel].variances[0] + 0.000001f);
+            paramDiffs[0] = powf(j,2)+powf(i,2);
+            dVals[0] = paramDiffs[0] / (2.0f * in[pixel].variances[0] + 0.000001f);
             // Colour d value
-            dVals[1] = (pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2)) 
-            / (2.0f * in[pixel].variances[1] * (in[pixel].stdDev[0] + in[_index].stdDev[0])  + 0.000001f);
+            paramDiffs[1] = powf(iCol[0] - jCol[0],2)+powf(iCol[1] - jCol[1],2) + powf(iCol[2] - jCol[2],2);
+            dVals[1] = paramDiffs[1] / (2.0f * in[pixel].variances[1] * (in[pixel].stdDev[0] + in[_index].stdDev[0])  + 0.000001f);
             // Normal d value
-            dVals[2] = (pow(iNormal[0] - jNormal[0],2)+pow(iNormal[1] - jNormal[1],2) + pow(iNormal[2] - jNormal[2],2)) 
-            / (2.0f * in[pixel].variances[2] * in[pixel].stdDev[1]  + 0.000001f);
+            paramDiffs[2] = powf(iNormal[0] - jNormal[0],2)+powf(iNormal[1] - jNormal[1],2) + powf(iNormal[2] - jNormal[2],2);
+            dVals[2] = paramDiffs[2] / (2.0f * in[pixel].variances[2] * in[pixel].stdDev[1]  + 0.000001f);
             // Alb1 d value
-            dVals[3] = (pow(iAlbedo1[0] - jAlbedo1[0],2)+pow(iAlbedo1[1] - jAlbedo1[1],2) + pow(iAlbedo1[2] - jAlbedo1[2],2)) 
-            / (2.0f * in[pixel].variances[3] * in[pixel].stdDev[2]  + 0.000001f);
+            paramDiffs[3] = powf(iAlbedo1[0] - jAlbedo1[0],2)+powf(iAlbedo1[1] - jAlbedo1[1],2) + powf(iAlbedo1[2] - jAlbedo1[2],2);
+            dVals[3] = paramDiffs[3] / (2.0f * in[pixel].variances[3] * in[pixel].stdDev[2]  + 0.000001f);
             // Alb2 d value
-            dVals[4] = (pow(iAlbedo2[0] - jAlbedo2[0],2)+pow(iAlbedo2[1] - jAlbedo2[1],2) + pow(iAlbedo2[2] - jAlbedo2[2],2)) 
-            / (2.0f * in[pixel].variances[4] * in[pixel].stdDev[3]  + 0.000001f);
+            paramDiffs[4] = powf(iAlbedo2[0] - jAlbedo2[0],2)+powf(iAlbedo2[1] - jAlbedo2[1],2) + powf(iAlbedo2[2] - jAlbedo2[2],2);
+            dVals[4] = paramDiffs[4] / (2.0f * in[pixel].variances[4] * in[pixel].stdDev[3]  + 0.000001f);
             // worldPos d value
-            dVals[5] = (pow(iWorldPos[0] - jWorldPos[0],2)+pow(iWorldPos[1] - jWorldPos[1],2) + pow(iWorldPos[2] - jWorldPos[2],2)) 
-            / (2.0f * in[pixel].variances[5] * in[pixel].stdDev[4]  + 0.000001f);
+            paramDiffs[5] = powf(iWorldPos[0] - jWorldPos[0],2)+powf(iWorldPos[1] - jWorldPos[1],2) + powf(iWorldPos[2] - jWorldPos[2],2);
+            dVals[5] = paramDiffs[5] / (2.0f * in[pixel].variances[5] * in[pixel].stdDev[4]  + 0.000001f);
             // directLight d value
-            dVals[6] = pow(iDirectLight - jDirectLight,2) / (2.0f * in[pixel].variances[6] * in[pixel].stdDev[5] + 0.000001f);
+            paramDiffs[6] = powf(iDirectLight - jDirectLight,2);
+            dVals[6] = paramDiffs[6] / (2.0f * in[pixel].variances[6] * in[pixel].stdDev[5] + 0.000001f);
 
-
+            dValMult = 1.0f;
             for (dVal=0;dVal<7;dVal++) {
-                dVals[dVal] += 0.000001f;
-                dValMult *= exp(-dVals[dVal]) + 0.000001f;;
+                dValMult *= exp(-dVals[dVal]) + 0.000001f;
             }
 
             for (var=0; var<7; var++) {
-                weightOverParam = dValMult * dVals[var] * 2.0f / in[pixel].variances[var];
+                weightOverParam = dValMult * paramDiffs[var] / powf(in[pixel].variances[var],3);
                 fDeriv->paramXYZ[var][0] += vecSum[0]*weightOverParam;
                 fDeriv->paramXYZ[var][1] += vecSum[1]*weightOverParam;
                 fDeriv->paramXYZ[var][2] += vecSum[2]*weightOverParam;
@@ -653,7 +652,7 @@ void CUDADenoiserNN::BackProp() {
     // Free memory
     cudaFree(CUDAFIn);
     cudaFree(CUDAFOut);
-    cudaFree(CUDAIn);
     cudaFree(CUDAConstants);
+    cudaFree(CUDAIn);
     cudaFree(CUDAOut);
 }
