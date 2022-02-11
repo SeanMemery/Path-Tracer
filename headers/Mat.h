@@ -8,7 +8,7 @@
 class Mat {
 public:
 
-    Mat() : matType(0), alb(vec3(1,1,1)), blur(0), RI(0) {}
+    Mat() : matType(0), alb(vec3(1,1,1)), blur(0), RI(1) {}
 
     Mat(int _matType, vec3 _alb, float _blur, float _RI)
      : matType(_matType), alb(_alb), blur(_blur), RI(_RI) {}

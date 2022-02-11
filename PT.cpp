@@ -7,12 +7,12 @@ float exposure, g, randSamp;
 int displayMetric, rootThreadsPerBlock;
 std::string skepuBackend;
 double renderTime, denoiseTime, epochTime, totalTime;
+uint64_t GloRandS[2];
 
 Scene scene;
 ImGuiWindowFlags window_flags;
 Camera cam;
-Denoiser denoiser;
-Renderers renderer;
+ManageConstants mConstants;
 Constants constants;
 
 // Denoising
@@ -22,6 +22,12 @@ std::string denoisingSkePUBackend;
 bool training, weightsLoaded, skipCudaDenoise;
 float* layerTwoValues; 
 float* layerThreeValues;
+SecondaryFeatures* sFeatures;
+float onetwo[360];
+float twothree[100];
+float threefour[80];
+float learningRate = 0.0001f;
+int samplesWhenTraining = 4;
 
 // Screens
 vec3* preScreen;
@@ -35,12 +41,16 @@ vec3* denoisedCol;
 vec3* targetCol;
 DenoisingInf* denoisingInf;
 
-
+// Value Buffers
+std::vector<uint> vertexIndices;
+std::vector<float> vertices;
+std::vector<float> objAttributes;
 
 PT::PT() :
     fileName(""),
     weightsName(""),
-    weightsNameSave("")
+    weightsNameSave(""),
+    sceneName("")
  {
 
     screenPerc = 0.963f;
@@ -53,7 +63,7 @@ PT::PT() :
     currentRenderer = 6;
     denoisingBackend = 1;
     rendering = true;
-    renderer = Renderers();
+    mConstants = ManageConstants();
 
     cam = Camera();
     cam.pos = vec3(0, 0, -9);
@@ -76,9 +86,8 @@ PT::PT() :
 
     scene = Scene();
     scene.InitScene();
-    renderer.UpdateConstants();
+    mConstants.UpdateConstants();
 
-    denoiser = Denoiser();
     denoiserNN = DenoiserNN();
 
     GLOBALS::InitScreens(true);
@@ -93,7 +102,7 @@ void PT::RenderLoop() {
 
         if (rendering) {
             if (refresh) {RefreshScreen();}
-            renderer.Render();
+            render();
         }
         else if (training)
             denoiserNN.TrainNN();
@@ -164,13 +173,13 @@ void PT::RefreshScreen(){
         yRes = 1080*0.25f;
         moving = false;
         refresh = true;
-        renderer.UpdateCam();
+        mConstants.UpdateCam();
     } else {
         xRes = 1920*resPerc;
         yRes = 1080*resPerc;
         xScreen = 1920*screenPerc;
         yScreen = 1080*screenPerc;
-        renderer.UpdateConstants();
+        mConstants.UpdateConstants();
         refresh = false;
     }
 
@@ -266,41 +275,14 @@ void PT::ImGui() {
 
         refresh |= ImGui::SliderFloat("Random Sampling Strength", &randSamp, 0.0f, 0.25f);
         refresh |= ImGui::SliderInt("Max Depth", &maxDepth, 1, 12);
-        refresh |= ImGui::SliderInt("Rendering Mode", &currentRenderer, 0, 6);
-        switch(currentRenderer) {
-            case 0:
-                ImGui::Text("CPU");
-                break;
-            case 1:
-                ImGui::Text("OpenMP");
-                break;
-            case 2:
-                ImGui::Text("CUDA");
-                ImGui::Text("Root Threads Per Block: %d", rootThreadsPerBlock);
-                if (ImGui::Button("Incr rTHB")) {
-                    rootThreadsPerBlock += 2;
-                    refresh = true;
-                }
-                if (ImGui::Button("Decr rTHB") && rootThreadsPerBlock > 2) {
-                    rootThreadsPerBlock -= 2;
-                    refresh = true;
-                }
-                break;
-            case 3:
-                ImGui::Text("OpenGL");
-                break;
-            case 4:
-                ImGui::Text("SkePU CPU");
-                skepuBackend = "cpu";
-                break;
-            case 5:
-                ImGui::Text("SkePU OpenMP");
-                skepuBackend = "openmp";
-                break;
-            case 6:
-                ImGui::Text("SkePU CUDA");
-                skepuBackend = "cuda";
-                break;
+        ImGui::Text("Root Threads Per Block: %d", rootThreadsPerBlock);
+        if (ImGui::Button("Incr rTHB")) {
+            rootThreadsPerBlock += 2;
+            refresh = true;
+        }
+        if (ImGui::Button("Decr rTHB") && rootThreadsPerBlock > 2) {
+            rootThreadsPerBlock -= 2;
+            refresh = true;
         }	
         refresh |= ImGui::Checkbox("Denoise", &denoising);
         ImGui::InputText("Name Render", fileName, IM_ARRAYSIZE(fileName));
@@ -313,6 +295,11 @@ void PT::ImGui() {
     // Object Settings
     {
         ImGui::Begin("Objects", NULL, 0);
+
+        ImGui::InputText("Scene File", sceneName, IM_ARRAYSIZE(sceneName));
+        if (ImGui::Button("Load Scene")){
+            refresh |= scene.LoadScene(sceneName);
+        }
 
         if (ImGui::Button("New Sphere")) {
             scene.AddShape(0);
@@ -351,7 +338,7 @@ void PT::ImGui() {
             ImGui::Text("-------------------Obj-------------------");
             ImGui::Text("");
             ImGui::Text("-------------------Mat-------------------");
-            refresh |= scene.objList[objEdit]->material.ImGuiEdit();
+            refresh |= scene.matList[scene.objList[objEdit]->mat_ind]->ImGuiEdit();
             ImGui::Text("-------------------Mat-------------------");
         }
 
@@ -364,35 +351,6 @@ void PT::ImGui() {
 
             ImGui::Begin("Denoisng", NULL, 0);
 
-            ImGui::SliderInt("Denoising Backend", &denoisingBackend, 0, 6);
-                switch(denoisingBackend) {
-                    case 0:
-                        ImGui::Text("CPU");
-                        break;
-                    case 1:
-                        ImGui::Text("OpenMP");
-                        break;
-                    case 2:
-                        ImGui::Text("CUDA");
-                        break;
-                    case 3:
-                        ImGui::Text("OpenGL");
-                        break;
-                    case 4:
-                        ImGui::Text("SkePU CPU");
-                        denoisingSkePUBackend = "cpu";
-                        break;
-                    case 5:
-                        ImGui::Text("SkePU OpenMP");
-                        denoisingSkePUBackend = "openmp";
-                        break;
-                    case 6:
-                        ImGui::Text("SkePU CUDA");
-                        denoisingSkePUBackend = "cuda";
-                        ImGui::Checkbox("Skip CUDA Denoise", &skipCudaDenoise);
-                        break;
-                }
-
             // Update screen texture based on input metric
             // 0: Regular View, 1: denoised image, 2: normal, 3: albedo1, 4: albedo2, 5: directLight, 6: worldPos, 7 tagetCol
 
@@ -403,8 +361,6 @@ void PT::ImGui() {
 
                 ImGui::InputInt("Denoising N", &denoisingN);
 
-
-
                 ImGui::Text("Denoise Time: %.3f", denoiseTime);
 
                 ImGui::Text("");
@@ -414,11 +370,11 @@ void PT::ImGui() {
                     denoiserNN.LoadWeights(weightsName); 
                 if (weightsLoaded)
                     if (ImGui::Button("Denoise Image"))
-                        denoiser.denoise();                             
+                        CUDADenoiser::denoise();                             
 
                 if (ImGui::InputInt("Learning Rate (Inverse)", &lRateInt, 0, 16))
-                    denoiserNN.learningRate = 1.0f / pow(10, lRateInt);
-                ImGui::InputInt("Sample for Training", &denoiserNN.samplesWhenTraining);
+                    learningRate = 1.0f / pow(10, lRateInt);
+                ImGui::InputInt("Sample for Training", &samplesWhenTraining);
 
                 if (!training) {
                     if (ImGui::Button("Start Training")) 

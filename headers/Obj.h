@@ -5,7 +5,15 @@
 #include "ext/imgui.h"
 #include <vector>
 
-// Sphere: 0, AABB: 1
+// Sphere: 0, AABB: 1, Model: 2
+//
+// Shape GPU Structure: obj_type, mat_ind, attr_ind
+//
+// Every shape has an index to its attributes:
+// 	- Sphere (4 attrs)  : pos.x, pos.y, pos.z, radius
+// 	- AABB   (9 attrs)  : pos.x, pos.y, pos.z, min.x, min.y, min.z, max.x, max.y, max.z
+//	- Model  (6 attrs)  : pos.x, pos.y, pos.z, scale, vert_ind, num_vertices
+//
 
 class Obj {
 public:
@@ -14,23 +22,19 @@ public:
 
     // ImGui Edit Screen
     virtual bool ImGuiEdit() = 0;
-
-	// Rendering Information
-	virtual std::vector<float> GetData()=0;
-
+	
     vec3 pos;
-    Mat material;
-	int type;
+	int type, mat_ind;
 	bool inImportantList;
 };
 
 class Sphere : public Obj {
 public:
 
-    Sphere(vec3 _pos, Mat _material, float _r)
+    Sphere(vec3 _pos, int _material, float _r)
     : r(_r) {
         pos = _pos;
-        material = _material;
+        mat_ind = _material;
 		type = 0;
     }
 
@@ -46,38 +50,6 @@ public:
 		return ref;
 	}
 
-	std::vector<float> GetData() {
-		auto vec = std::vector<float>();
-
-		vec.push_back(pos.x);
-		vec.push_back(pos.y);
-		vec.push_back(pos.z);
-
-		vec.push_back(material.alb.x);
-		vec.push_back(material.alb.y);
-		vec.push_back(material.alb.z);
-
-		vec.push_back(material.matType);
-		vec.push_back(1);
-
-		vec.push_back(r);
-
-		// BUFFERS
-		vec.push_back(0.0f);
-		vec.push_back(0.0f);
-		vec.push_back(0.0f);
-		vec.push_back(0.0f);
-		vec.push_back(0.0f);
-		// BUFFERS
-
-		vec.push_back(material.blur);
-		vec.push_back(material.RI);
-
-
-		return vec;
-	}
-	
-
     float r;
 
 };
@@ -85,10 +57,10 @@ public:
 class AABB : public Obj {
 public:
 
-    AABB(vec3 _pos, Mat _material, vec3 _min, vec3 _max) 
+    AABB(vec3 _pos, int _material, vec3 _min, vec3 _max) 
     : min(_min), max(_max) {
         pos = _pos;
-        material = _material; 
+        mat_ind = _material; 
 		type = 1;
     }
 
@@ -113,35 +85,38 @@ public:
 		return ref;
 	}
 
-	std::vector<float> GetData() {
-		auto vec = std::vector<float>();
+    vec3 min, max;
 
-		vec.push_back(pos.x);
-		vec.push_back(pos.y);
-		vec.push_back(pos.z);
+};
 
-		vec.push_back(material.alb.x);
-		vec.push_back(material.alb.y);
-		vec.push_back(material.alb.z);
+class Model : public Obj {
+public:
 
-		vec.push_back(material.matType);
-		vec.push_back(0);
+    Model(vec3 _pos, int _material, std::string _name) 
+    : name(_name) {
+        pos = _pos;
+        mat_ind = _material; 
+		type = 2;
+		scale = 1;
 
-		vec.push_back(pos.x + min.x);
-		vec.push_back(pos.y + min.y);
-		vec.push_back(pos.z + min.z);
+		vert_ind = 0;
+		num_vertices = 0;
+    }
 
-		vec.push_back(pos.x + max.x);
-		vec.push_back(pos.y + max.y);
-		vec.push_back(pos.z + max.z);
-
-		vec.push_back(material.blur);
-		vec.push_back(material.RI);
-
-		return vec;
-
+	bool ImGuiEdit() {
+		ImGui::Text("--------Model-------");
+		bool ref = false;
+		float sPos[3]{ pos.x,pos.y,pos.z };
+		if (ImGui::InputFloat3("Mid Position", sPos)) {
+		    pos = vec3(sPos[0], sPos[1], sPos[2]);
+			ref = true;
+		}
+		ref |= ImGui::InputFloat("Scale", &scale, 0, 100.0f);
+		return ref;
 	}
 
-    vec3 min, max;
+	float scale;
+	std::string name;
+	int vert_ind, num_vertices;
 
 };

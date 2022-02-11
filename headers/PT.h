@@ -2,12 +2,11 @@
 
 #include "GLOBALS.h"
 #include "vec3.h"
-#include "Renderers.h"
+#include "ManageConstants.h"
 #include "Scene.h"
 #include "Obj.h"
 #include "Mat.h"
 #include "Camera.h"
-#include "Denoiser.h"
 #include "DenoiserNN.h"
 
 #include "ext/imgui.h"
@@ -18,6 +17,12 @@
 
 #include <sstream>
 #include <fstream>
+
+#include <chrono>
+using namespace std::chrono;
+typedef std::chrono::high_resolution_clock clock_;
+typedef std::chrono::duration<double, std::milli > milli_second_;
+
 
 class PT {
 public:
@@ -37,9 +42,19 @@ public:
 
     // ImGui Vars
     int objEdit, lRateInt;
-    char fileName[32], weightsName[32], weightsNameSave[32];
+    char fileName[32], weightsName[32], weightsNameSave[32], sceneName[32];
     float resPerc, screenPerc;
     SDL_Window* sdlWindow;
+
+
+    void render() {
+        auto renderTimer = clock_::now();
+
+        CUDARender::render();
+
+        renderTime = std::chrono::duration_cast<milli_second_>(clock_::now() - renderTimer).count();
+        totalTime += renderTime;
+    }
 
 
 };

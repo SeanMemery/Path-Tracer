@@ -316,8 +316,8 @@ void CUDADenoiserNN::ForwardProp() {
     FPConstants* CUDAConstants;
 
     int numPixels = xRes*yRes;
-    delete denoiserNN.sFeatures;
-    denoiserNN.sFeatures = new SecondaryFeatures[numPixels];
+    delete sFeatures;
+    sFeatures = new SecondaryFeatures[numPixels];
 
     cudaMallocManaged(&CUDAIn,  numPixels*sizeof(ForPropIn));
     cudaMallocManaged(&CUDAOut, numPixels*sizeof(ForPropOut));
@@ -327,11 +327,11 @@ void CUDADenoiserNN::ForwardProp() {
     int w;
     CUDAConstants->samples = sampleCount;
     for (w=0;w<360;w++)
-        CUDAConstants->onetwo[w] = denoiserNN.onetwo[w];
+        CUDAConstants->onetwo[w] = onetwo[w];
     for (w=0;w<100;w++)
-        CUDAConstants->twothree[w] = denoiserNN.twothree[w];
+        CUDAConstants->twothree[w] = twothree[w];
     for (w=0;w<70;w++)
-        CUDAConstants->threefour[w] = denoiserNN.threefour[w];
+        CUDAConstants->threefour[w] = threefour[w];
     CUDAConstants->RESH = xRes;
     CUDAConstants->RESV = yRes;
 
@@ -369,7 +369,7 @@ void CUDADenoiserNN::ForwardProp() {
 
         ret = CUDAOut[ind];
         info = &denoisingInf[ind];
-        s = &denoiserNN.sFeatures[ind];
+        s = &sFeatures[ind];
 
         for (v = 0; v < 10; v++) {
             layerTwoValues[10*ind + v] = ret.l2[v];
@@ -577,7 +577,7 @@ void CUDADenoiserNN::BackProp() {
     CUDAConstants->RESH = xRes;
     CUDAConstants->RESV = yRes;
     CUDAConstants->samples = sampleCount;
-    CUDAConstants->learningRate = denoiserNN.learningRate;
+    CUDAConstants->learningRate = learningRate;
     CUDAConstants->denoisingN = denoisingN;
 
     // Calc Filter Derivs with Map Overlap
@@ -628,7 +628,7 @@ void CUDADenoiserNN::BackProp() {
         CUDAIn[ind].deriv = CUDAFOut[ind];
 
         for (c=0; c<36; c++)
-            CUDAIn[ind].s[c] = denoiserNN.sFeatures[ind](c);
+            CUDAIn[ind].s[c] = sFeatures[ind](c);
         for (c=0; c<10; c++) {
             CUDAIn[ind].l2[c] = layerTwoValues[10*ind + c];
             CUDAIn[ind].l3[c] = layerThreeValues[10*ind + c];
@@ -642,11 +642,11 @@ void CUDADenoiserNN::BackProp() {
 
     for (int ind = 0; ind < numPixels; ind++) {
         for (c=0; c<360; c++)
-            denoiserNN.onetwo[c] += CUDAOut[ind].onetwo[c];
+            onetwo[c] += CUDAOut[ind].onetwo[c];
         for (c=0; c<100; c++) 
-            denoiserNN.twothree[c] += CUDAOut[ind].twothree[c];
+            twothree[c] += CUDAOut[ind].twothree[c];
         for (c=0; c<70; c++) 
-            denoiserNN.threefour[c] += CUDAOut[ind].threefour[c];
+            threefour[c] += CUDAOut[ind].threefour[c];
     }
 
     // Free memory

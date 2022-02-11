@@ -1,3 +1,5 @@
+#pragma once
+
 #include "GLOBALS.h"
 
 namespace CUDADenoiserNN {
@@ -16,5 +18,12 @@ namespace CUDADenoiser {
 namespace CUDARender {
 
     void render();
+    void UpdateConstants();
+    void UpdateCam();
+
+    static uint*      CUDAVertexIndices;
+    static float*     CUDAVertices;
+    static float*     CUDAObjAttributes;
+    static Constants* CUDAConstants;
 
 };
