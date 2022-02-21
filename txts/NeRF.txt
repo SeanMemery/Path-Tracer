@@ -1,0 +1,2 @@
+1. Can move around scene by adjusting spherical coords and distance to center
+2. NeRF turns meshes to Neural Nets, collision functions with NNs ? Calculated during input to NN ? 

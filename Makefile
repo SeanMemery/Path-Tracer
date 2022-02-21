@@ -36,12 +36,6 @@ PT_HEADERS = $(shell pwd)/headers
 # ---------------------------------------------------------------------------- #
 # Compilers.
 
-# Conditionally choose either g++ or nvcc for target compiler,
-CXX = g++-10
-ifneq (,$(findstring cuda, $(BACKENDS)))
-CXX = nvcc
-endif
-
 # Location of SkePU precompiler binary.
 SKEPU = $(shell pwd)/../skepu/build/llvm/bin/skepu-tool
 

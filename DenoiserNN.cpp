@@ -1562,12 +1562,12 @@ static inline uint64_t rotl(const uint64_t x, int k) {
 	return (x << k) | (x >> (64 - k));
 }
 static inline uint64_t xoroshiro128PP() {
-	const uint64_t s0 = constants.GloRandS[0];
-	uint64_t s1 = constants.GloRandS[1];
+	const uint64_t s0 = renderer.GloRandS[0];
+	uint64_t s1 = renderer.GloRandS[1];
 	const uint64_t result_plus = rotl(s0 + s1, R) + s0;
 	s1 ^= s0;
-	constants.GloRandS[0] = rotl(s0, A) ^ s1 ^ (s1 << B);
-	constants.GloRandS[1] = rotl(s1, C);
+	renderer.GloRandS[0] = rotl(s0, A) ^ s1 ^ (s1 << B);
+	renderer.GloRandS[1] = rotl(s1, C);
 	return result_plus;
 }
 float RandBetween(float min, float max) {

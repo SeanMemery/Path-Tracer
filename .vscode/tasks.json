@@ -6,13 +6,13 @@
         {
             "label": "build release",
             "type": "shell",
-            "command": "sudo make",
+            "command": "make",
             "group": "build"
         },
         {
             "label": "build debug",
             "type": "shell",
-            "command": "sudo make debug",
+            "command": "make debug",
             "group": "build"
         }
     ]

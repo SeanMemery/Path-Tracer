@@ -3,6 +3,7 @@
 #include <string>
 #include "vec3.h"
 #include "ext/imgui.h"
+#include <vector>
 
 class Camera;
 class Denoiser;
@@ -16,7 +17,7 @@ extern bool denoising, moving, quit, rendering, refresh;
 extern unsigned int mainTexture; 
 extern std::string skepuBackend;
 extern float randSamp;
-extern double renderTime, denoiseTime, epochTime, totalTime;
+extern double renderTime, denoiseTime, epochTime, totalTime, exposureTime;
 
 extern int rootThreadsPerBlock;
 
@@ -80,13 +81,11 @@ struct Constants {
 	int RESV, RESH;
 	float maxAngleV, maxAngleH, focalLength;
 
-	uint64_t GloRandS[2];
+	int shapes[50][3];
+    float objAttributes[450];
+    float matList[50][6];
 
-	float backgroundColour[3];
-
-	float shapes[20][16];
-
-	int importantShapes[5];
+	uint importantShapes[10];
 	uint numImportantShapes;
 	uint getDenoiserInf;
 };
@@ -194,7 +193,6 @@ struct SkePUBPOut {
     float threefour[70];
 
 };
-
 
 namespace GLOBALS {
 

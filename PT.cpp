@@ -6,7 +6,7 @@ unsigned int mainTexture;
 float exposure, g, randSamp;
 int displayMetric, rootThreadsPerBlock;
 std::string skepuBackend;
-double renderTime, denoiseTime, epochTime, totalTime;
+double renderTime, denoiseTime, epochTime, totalTime, exposureTime;
 
 Scene scene;
 ImGuiWindowFlags window_flags;
@@ -35,12 +35,16 @@ vec3* denoisedCol;
 vec3* targetCol;
 DenoisingInf* denoisingInf;
 
-
+// Value Buffers
+std::vector<uint> vertexIndices;
+std::vector<float> vertices;
+std::vector<float> objAttributes;
 
 PT::PT() :
     fileName(""),
     weightsName(""),
-    weightsNameSave("")
+    weightsNameSave(""),
+    sceneName("")
  {
 
     screenPerc = 0.963f;
@@ -303,6 +307,9 @@ void PT::ImGui() {
                 break;
         }	
         refresh |= ImGui::Checkbox("Denoise", &denoising);
+        ImGui::Text("Auto Exposure Time: %.3f", exposureTime);
+        if (ImGui::Button("Auto Expose"))
+            renderer.AutoExposure();
         ImGui::InputText("Name Render", fileName, IM_ARRAYSIZE(fileName));
         if (ImGui::Button("Save Render"))
             SaveImage(fileName);
@@ -313,6 +320,15 @@ void PT::ImGui() {
     // Object Settings
     {
         ImGui::Begin("Objects", NULL, 0);
+        ImGui::Text("-------------------Scene-------------------");
+        ImGui::InputText("Scene Name", sceneName, IM_ARRAYSIZE(sceneName));
+        if (ImGui::Button("Save Scene"))
+            scene.SaveScene(sceneName);
+        if (ImGui::Button("Load Scene")) {
+            refresh |= scene.LoadScene(sceneName);
+            objEdit = 0;
+        }
+        ImGui::Text("-------------------Scene-------------------");
 
         if (ImGui::Button("New Sphere")) {
             scene.AddShape(0);
@@ -351,7 +367,7 @@ void PT::ImGui() {
             ImGui::Text("-------------------Obj-------------------");
             ImGui::Text("");
             ImGui::Text("-------------------Mat-------------------");
-            refresh |= scene.objList[objEdit]->material.ImGuiEdit();
+            refresh |= scene.matList[scene.objList[objEdit]->mat_ind]->ImGuiEdit();
             ImGui::Text("-------------------Mat-------------------");
         }
 
@@ -402,8 +418,6 @@ void PT::ImGui() {
             if (!rendering) {
 
                 ImGui::InputInt("Denoising N", &denoisingN);
-
-
 
                 ImGui::Text("Denoise Time: %.3f", denoiseTime);
 

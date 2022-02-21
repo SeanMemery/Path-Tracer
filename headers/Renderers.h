@@ -67,4 +67,44 @@ public:
 
     void UpdateConstants();
     void UpdateCam();
+    
+
+    void AutoExposure() {
+
+        auto exposureTImer = clock_::now();
+
+        switch(currentRenderer) {
+            case 0:
+                CPUAutoExp();
+                break;
+            case 1:
+                OMPAutoExp();
+                break;
+            case 2:
+                CUDAAutoExp();
+                break;
+            case 3:
+                OpenGLAutoExp();
+                break;
+            case 4:
+                SkePUAutoExp();
+                break;
+            case 5:
+                SkePUAutoExp();
+                break;
+            case 6:
+                SkePUAutoExp();
+                break;
+        }
+
+        exposureTime = std::chrono::duration_cast<milli_second_>(clock_::now() - exposureTImer).count();
+    }
+
+    void CPUAutoExp();
+    void OMPAutoExp();
+    void CUDAAutoExp(){}
+    void OpenGLAutoExp(){}
+    void SkePUAutoExp();
+
+    uint64_t GloRandS[2];
 };

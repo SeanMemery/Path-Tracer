@@ -1,4 +1,30 @@
 #include "CUDAHeader.h"
+#include "Renderers.h"
+
+    __device__ 
+    float4 QMult(float4 q1, float4 q2 ) {
+        auto A1 = (q1.w + q1.y) * (q2.y + q2.z);
+        auto A3 = (q1.x - q1.z) * (q2.x + q2.w);
+        auto A4 = (q1.x + q1.z) * (q2.x - q2.w);
+        auto A2 = A1 + A3 + A4;
+        auto A5 = (q1.w - q1.y) * (q2.y - q2.z);
+        A5 = (A5 + A2) / 2.0f;
+
+        auto Q1 = A5 - A1 + (q1.w - q1.z) * (q2.z - q2.w);
+        auto Q2 = A5 - A2 + (q1.y + q1.x) * (q2.y + q2.x);
+        auto Q3 = A5 - A3 + (q1.x - q1.y) * (q2.z + q2.w);
+        auto Q4 = A5 - A4 + (q1.w + q1.z) * (q2.x - q2.y);
+
+        return {Q1, Q2, Q3, Q4};
+    }
+    __device__
+    void rotate(float3& to_rotate, float4 q) {
+        float4 p  {0, to_rotate.x, to_rotate.y, to_rotate.z};
+        float4 qR {q.x,-q.y,-q.z,-q.w};
+
+        float4 ret = QMult(qR, QMult(p, q));
+        to_rotate.x=ret.y;to_rotate.y=ret.z;to_rotate.z=ret.w;
+    };
 
     __device__
     float RandBetween(RandomSeeds& s, float min, float max) {
@@ -38,36 +64,49 @@
     }
 
     __device__
-    float3 Intersect(float3 rayDir, float3 rayOrigin, Constants* constants, int& shapeHit, int& shapeTypeHit, bool& hitAnything) {
+    float3 Intersect(float3 rayDir, float3 rayOrigin, Constants* constants, int& shapeHit, bool& hitAnything, float3& OBBSpacePosHit) {
         float E = 0.001f;
         float t = INFINITY;
         float3 posHit;
         for (int ind = 0; ind < constants->numShapes; ind++) {
-            int shapeType = (int)constants->shapes[ind][7];
+            int shapeType = (int)constants->shapes[ind][0];
+            int attrInd = (int)constants->shapes[ind][2];
             float tempT = INFINITY;
             // ----- intersect shapes -----
             // aabb
-            if ( shapeType == 0) {
-                int sign[3] = {rayDir.x < 0, rayDir.y < 0, rayDir.z < 0};
+            if ( shapeType == 1) {
+                // Transform Ray
+                float3 rDir = {rayDir.x, rayDir.y, rayDir.z};
+                float3 boxPos = {constants->objAttributes[attrInd + 0], constants->objAttributes[attrInd + 1], constants->objAttributes[attrInd + 2]};
+                float3 rPos = {rayOrigin.x-boxPos.x, rayOrigin.y-boxPos.y, rayOrigin.z-boxPos.z};
+                float4 rot = {constants->objAttributes[attrInd + 9], constants->objAttributes[attrInd + 10], constants->objAttributes[attrInd + 11], constants->objAttributes[attrInd + 12]};
+                if (rot.y + rot.z + rot.w > E) {
+                    rotate(rDir,rot);
+                    rDir = normalize(rDir);
+                    rotate(rPos,rot);
+                }
+                rPos.x+=boxPos.x;rPos.y+=boxPos.y;rPos.z+=boxPos.z;
+                
+                int sign[3] = {rDir.x < 0, rDir.y < 0, rDir.z < 0};
                 float3 bounds[2];
-                bounds[0].x = constants->shapes[ind][8];
-                bounds[0].y = constants->shapes[ind][9];
-                bounds[0].z = constants->shapes[ind][10];
-                bounds[1].x = constants->shapes[ind][11];
-                bounds[1].y = constants->shapes[ind][12];
-                bounds[1].z = constants->shapes[ind][13];
-                float tmin = (bounds[sign[0]].x - rayOrigin.x) / rayDir.x;
-                float tmax = (bounds[1 - sign[0]].x - rayOrigin.x) / rayDir.x;
-                float tymin = (bounds[sign[1]].y - rayOrigin.y) / rayDir.y;
-                float tymax = (bounds[1 - sign[1]].y - rayOrigin.y) / rayDir.y;
+                bounds[0].x = constants->objAttributes[attrInd + 3];
+                bounds[0].y = constants->objAttributes[attrInd + 4];
+                bounds[0].z = constants->objAttributes[attrInd + 5];
+                bounds[1].x = constants->objAttributes[attrInd + 6];
+                bounds[1].y = constants->objAttributes[attrInd + 7];
+                bounds[1].z = constants->objAttributes[attrInd + 8];
+                float tmin = (bounds[sign[0]].x - rPos.x) / rDir.x;
+                float tmax = (bounds[1 - sign[0]].x - rPos.x) / rDir.x;
+                float tymin = (bounds[sign[1]].y - rPos.y) / rDir.y;
+                float tymax = (bounds[1 - sign[1]].y - rPos.y) / rDir.y;
                 if ((tmin > tymax) || (tymin > tmax))
                     continue;
                 if (tymin > tmin)
                     tmin = tymin;
                 if (tymax < tmax)
                     tmax = tymax;
-                float tzmin = (bounds[sign[2]].z - rayOrigin.z) / rayDir.z;
-                float tzmax = (bounds[1 - sign[2]].z - rayOrigin.z) / rayDir.z;
+                float tzmin = (bounds[sign[2]].z - rPos.z) / rDir.z;
+                float tzmax = (bounds[1 - sign[2]].z - rPos.z) / rDir.z;
                 if ((tmin > tzmax) || (tzmin > tmax))
                     continue;
                 if (tzmin > tmin)
@@ -81,18 +120,24 @@
                     tempT = tmax;
                 else
                     continue;
+
+                if (tempT < t) {
+                    OBBSpacePosHit.x = rPos.x + rDir.x*tempT;
+                    OBBSpacePosHit.y = rPos.y + rDir.y*tempT;
+                    OBBSpacePosHit.z = rPos.z + rDir.z*tempT;          
+                }  
             }
             // sphere
-            else if (shapeType == 1) {
+            else if (shapeType == 0) {
                 float3 L;
-                L.x = constants->shapes[ind][0] - rayOrigin.x;
-                L.y = constants->shapes[ind][1] - rayOrigin.y;
-                L.z = constants->shapes[ind][2] - rayOrigin.z;
+                L.x = constants->objAttributes[attrInd+0] - rayOrigin.x;
+                L.y = constants->objAttributes[attrInd+1] - rayOrigin.y;
+                L.z = constants->objAttributes[attrInd+2] - rayOrigin.z;
                 float tca = dot(L, rayDir);
                 if (tca < E)
                     continue;
                 float dsq = dot(L,L) - tca * tca;
-                float radiusSq = constants->shapes[ind][8] * constants->shapes[ind][8];
+                float radiusSq = constants->objAttributes[attrInd+3] * constants->objAttributes[attrInd+3];
                 if (radiusSq - dsq < E)
                     continue;
                 float thc = sqrtf(radiusSq - dsq);
@@ -113,43 +158,57 @@
                 posHit.y = rayOrigin.y + rayDir.y*t;
                 posHit.z = rayOrigin.z + rayDir.z*t;
                 shapeHit = ind;
-                shapeTypeHit = shapeType;
             }
         }
         return posHit;
     }
     
     __device__
-    bool ShadowIntersect(float3 rayDir, float3 rayOrigin, float maxT, int impShape, Constants* constants) {
+    bool ShadowIntersect(float3 rayDir, float3 rayOrigin, float maxT, int impShape, Constants* constants, float3 randDir) {
         float E = 0.001f;
         for (int ind = 0; ind < constants->numShapes; ind++) {
             if (ind == impShape)
                 continue;
-            int shapeType = (int)constants->shapes[ind][7];
+            int shapeType = constants->shapes[ind][0];
+            int matInd = constants->shapes[ind][1];
+            int attrInd   = constants->shapes[ind][2];
             float tempT = INFINITY;
+            float3 posHit, obbPosHit;
             // ----- intersect shapes -----
             // aabb
-            if ( shapeType == 0) {
-                int sign[3] = {rayDir.x < 0, rayDir.y < 0, rayDir.z < 0};
+            if ( shapeType == 1) {
+                // Transform Ray
+                float3 rDir = {rayDir.x, rayDir.y, rayDir.z};
+                float3 boxPos = {constants->objAttributes[attrInd + 0], constants->objAttributes[attrInd + 1], constants->objAttributes[attrInd + 2]};
+                float3 rPos = {rayOrigin.x-boxPos.x, rayOrigin.y-boxPos.y, rayOrigin.z-boxPos.z};
+                float4 rot = {constants->objAttributes[attrInd + 9], constants->objAttributes[attrInd + 10], constants->objAttributes[attrInd + 11], constants->objAttributes[attrInd + 12]};
+                if (rot.y + rot.z + rot.w > E) {
+                    rotate(rDir,rot);
+                    rDir = normalize(rDir);
+                    rotate(rPos,rot);
+                }
+                rPos.x+=boxPos.x;rPos.y+=boxPos.y;rPos.z+=boxPos.z;
+
+                int sign[3] = {rDir.x < 0, rDir.y < 0, rDir.z < 0};
                 float3 bounds[2];
-                bounds[0].x = constants->shapes[ind][8];
-                bounds[0].y = constants->shapes[ind][9];
-                bounds[0].z = constants->shapes[ind][10];
-                bounds[1].x = constants->shapes[ind][11];
-                bounds[1].y = constants->shapes[ind][12];
-                bounds[1].z = constants->shapes[ind][13];
-                float tmin = (bounds[sign[0]].x - rayOrigin.x) / rayDir.x;
-                float tmax = (bounds[1 - sign[0]].x - rayOrigin.x) / rayDir.x;
-                float tymin = (bounds[sign[1]].y - rayOrigin.y) / rayDir.y;
-                float tymax = (bounds[1 - sign[1]].y - rayOrigin.y) / rayDir.y;
+                bounds[0].x = constants->objAttributes[attrInd + 3];
+                bounds[0].y = constants->objAttributes[attrInd + 4];
+                bounds[0].z = constants->objAttributes[attrInd + 5];
+                bounds[1].x = constants->objAttributes[attrInd + 6];
+                bounds[1].y = constants->objAttributes[attrInd + 7];
+                bounds[1].z = constants->objAttributes[attrInd + 8];
+                float tmin = (bounds[sign[0]].x - rPos.x) / rDir.x;
+                float tmax = (bounds[1 - sign[0]].x - rPos.x) / rDir.x;
+                float tymin = (bounds[sign[1]].y - rPos.y) / rDir.y;
+                float tymax = (bounds[1 - sign[1]].y - rPos.y) / rDir.y;
                 if ((tmin > tymax) || (tymin > tmax))
                     continue;
                 if (tymin > tmin)
                     tmin = tymin;
                 if (tymax < tmax)
                     tmax = tymax;
-                float tzmin = (bounds[sign[2]].z - rayOrigin.z) / rayDir.z;
-                float tzmax = (bounds[1 - sign[2]].z - rayOrigin.z) / rayDir.z;
+                float tzmin = (bounds[sign[2]].z - rPos.z) / rDir.z;
+                float tzmax = (bounds[1 - sign[2]].z - rPos.z) / rDir.z;
                 if ((tmin > tzmax) || (tzmin > tmax))
                     continue;
                 if (tzmin > tmin)
@@ -158,18 +217,24 @@
                     tmax = tzmax;
                 // Check times are positive, but use E for floating point accuracy
                 tempT = tmin > E ? tmin : (tmax > E ? tmax : INFINITY); 
+
+                if ((int)constants->matList[matInd][5]==3) {
+                    obbPosHit.x = rPos.x + rDir.x*tempT;
+                    obbPosHit.y = rPos.y + rDir.y*tempT;
+                    obbPosHit.z = rPos.z + rDir.z*tempT;
+                }             
             }
             // sphere
-            else if (shapeType == 1) {
+            else if (shapeType == 0) {
                 float3 L;
-                L.x = constants->shapes[ind][0] - rayOrigin.x;
-                L.y = constants->shapes[ind][1] - rayOrigin.y;
-                L.z = constants->shapes[ind][2] - rayOrigin.z;
+                L.x = constants->objAttributes[attrInd+0] - rayOrigin.x;
+                L.y = constants->objAttributes[attrInd+1] - rayOrigin.y;
+                L.z = constants->objAttributes[attrInd+2] - rayOrigin.z;
                 float tca = dot(L, rayDir);
                 if (tca < E)
                     continue;
                 float dsq = dot(L,L) - tca * tca;
-                float radiusSq = constants->shapes[ind][8] * constants->shapes[ind][8];
+                float radiusSq = constants->objAttributes[attrInd+3] * constants->objAttributes[attrInd+3];
                 if (radiusSq - dsq < E)
                     continue;
                 float thc = sqrtf(radiusSq - dsq);
@@ -179,6 +244,90 @@
                 tempT = t0 > E ? t0 : (t1 > E ? t1 : INFINITY); 
             }
             if (tempT < maxT) {
+                // Dialectric Check
+                if ((int)constants->matList[matInd][5]==3) {
+                    float blur = constants->matList[matInd][3];
+                    float RI = 1.0f / constants->matList[matInd][4];
+                    // Get Normal
+                    float3 refNorm {0.0f, 0.0f, 0.0f};
+                    if (shapeType == 1) {
+                        float3 bounds[2];
+                        bounds[0].x = constants->objAttributes[attrInd + 3];
+                        bounds[0].y = constants->objAttributes[attrInd + 4];
+                        bounds[0].z = constants->objAttributes[attrInd + 5];
+                        bounds[1].x = constants->objAttributes[attrInd + 6];
+                        bounds[1].y = constants->objAttributes[attrInd + 7];
+                        bounds[1].z = constants->objAttributes[attrInd + 8];
+
+                        // Flat 
+                        if (fabs(bounds[0].x - bounds[1].x) < E) {
+                            refNorm.x = rayDir.x > 0 ? -1 : 1;
+                        }
+                        else if (fabs(bounds[0].y - bounds[1].y) < E) {
+                            refNorm.y = rayDir.y > 0 ? -1 : 1;
+                        }
+                        else if (fabs(bounds[0].z - bounds[1].z) < E) {
+                            refNorm.z = rayDir.z > 0 ? -1 : 1;
+                        }
+                        // Not Flat
+                        else if (fabs(obbPosHit.x - bounds[0].x) < E)
+                            refNorm.x = -1;
+                        else if (fabs(obbPosHit.x - bounds[1].x) < E)
+                            refNorm.x = 1;
+                        else if (fabs(obbPosHit.y - bounds[0].y) < E)
+                            refNorm.y = -1;
+                        else if (fabs(obbPosHit.y - bounds[1].y) < E)
+                            refNorm.y = 1;
+                        else if (fabs(obbPosHit.z - bounds[0].z) < E)
+                            refNorm.z = -1;
+                        else if (fabs(obbPosHit.z - bounds[1].z) < E)
+                            refNorm.z = 1;
+
+                        // Transform Normal
+                        float4 rot = {constants->objAttributes[attrInd + 9], -constants->objAttributes[attrInd + 10], -constants->objAttributes[attrInd + 11], -constants->objAttributes[attrInd + 12]};
+                        rotate(refNorm, rot);
+                        refNorm = normalize(refNorm);
+                    }
+                    else if (shapeType == 0) {
+                            posHit.x = rayOrigin.x + rayDir.x*tempT;
+                            posHit.y = rayOrigin.y + rayDir.y*tempT;
+                            posHit.z = rayOrigin.z + rayDir.z*tempT;
+                            refNorm.x = posHit.x - constants->objAttributes[attrInd+0];
+                            refNorm.y = posHit.y - constants->objAttributes[attrInd+1];
+                            refNorm.z = posHit.z - constants->objAttributes[attrInd+2];
+                            refNorm = normalize(refNorm);
+                        }
+                    float cosi = dot(rayDir, refNorm);
+
+                    // If normal is same direction as ray, then flip
+                    if (cosi > 0) {
+                        refNorm.x*=-1.0f;refNorm.y*=-1.0f;refNorm.z*=-1.0f;
+                        RI = 1.0f / RI;
+                    }
+                    else {
+                        cosi*=-1.0f;
+                    }
+
+                    // Can refract check
+                    float sinSq = RI*RI*(1.0f-cosi*cosi);
+                    bool canRefract = 1.0f - sinSq > E;
+                            
+
+                    if (!canRefract) {
+                        rayDir.x = (rayDir.x - 2.0f*cosi*refNorm.x)*(1.0f - blur) + blur*randDir.x;
+                        rayDir.y = (rayDir.y - 2.0f*cosi*refNorm.y)*(1.0f - blur) + blur*randDir.y;
+                        rayDir.z = (rayDir.z - 2.0f*cosi*refNorm.z)*(1.0f - blur) + blur*randDir.z;
+                        rayDir = normalize(rayDir);
+                    }
+                    else {
+                        float refCalc = RI*cosi - sqrtf(1-sinSq);
+                        rayDir.x = (RI*rayDir.x + refCalc*refNorm.x)*(1.0f - blur) + blur*randDir.x;
+                        rayDir.y = (RI*rayDir.y + refCalc*refNorm.y)*(1.0f - blur) + blur*randDir.y;
+                        rayDir.z = (RI*rayDir.z + refCalc*refNorm.z)*(1.0f - blur) + blur*randDir.z;
+                        rayDir = normalize(rayDir);					
+                    }
+                    continue;
+                }
                 return true;
             }
         } 
@@ -226,7 +375,7 @@
         rayDir = normalize(rayDir);
 
         // Background col
-        float3 back_col = {constants->backgroundColour[0], constants->backgroundColour[1], constants->backgroundColour[2]};
+        float3 back_col = {0,0,0};
 
         // Store ray collisions and reverse through them (last num is shape index)
         float4 rayPositions[12];
@@ -235,25 +384,9 @@
         // Shadow Rays: counts succesful shadow rays i.e. direct lighting, done for each bounce to provide more info
         int shadowRays[12];
         for (int v=0; v<12; v++){
-            pdfVals[v] = 1.0f / (4.0f*M_PI);
+            pdfVals[v] = 1.0f / M_PI;
             shadowRays[v] = 0;
         }
-
-        /*
-            - loop through shapes
-            - append to positions if hit shape, break if not
-            - add shape index as 4th component 
-
-            constants->shapes
-            - pos: 0, 1, 2
-            - albedo: 3, 4, 5
-            - mat type: 6 (0 lambertian, 1 light, 2 metal, 3 dielectric)
-            - shape type: 7 (0 AABB, 1 Sphere)
-                - 0: min bound 8, 9, 10, max bound 11, 12, 13
-                - 1: radius 8
-            - blur: 14
-            - r index: 15
-        */
 
         int numShapeHit = 0;
         int numRays = 0;
@@ -270,60 +403,69 @@
                 prevPos = camPos;
             }
             float3 posHit {0.0f, 0.0f, 0.0f};
+            float3 OBBSpacePosHit {0.0f,0.0f,0.0f};
             bool hitAnything = false;
-            int shapeTypeHit;
+            int shapeTypeHit, matInd, attrInd;
             // Collide with shapes, generating new dirs as needed (i.e. random or specular)
             {
 
                 float E = 0.00001f;
 
                 // Find shape
-                posHit = Intersect(dir, prevPos, constants, shapeHit, shapeTypeHit, hitAnything);
+                posHit = Intersect(dir, prevPos, constants, shapeHit, hitAnything, OBBSpacePosHit);
+                shapeTypeHit = constants->shapes[shapeHit][0];
+                matInd       = constants->shapes[shapeHit][1];
+                attrInd      = constants->shapes[shapeHit][2];
 
                 if (hitAnything) {
 
                     // Get Normal
                     {
-                        if (shapeTypeHit == 0) {
+                        if (shapeTypeHit == 1) {
                             float3 bounds[2];
-                            bounds[0].x = constants->shapes[shapeHit][8];
-                            bounds[0].y = constants->shapes[shapeHit][9];
-                            bounds[0].z = constants->shapes[shapeHit][10];
-                            bounds[1].x = constants->shapes[shapeHit][11];
-                            bounds[1].y = constants->shapes[shapeHit][12];
-                            bounds[1].z = constants->shapes[shapeHit][13];
+                            bounds[0].x = constants->objAttributes[attrInd + 3];
+                            bounds[0].y = constants->objAttributes[attrInd + 4];
+                            bounds[0].z = constants->objAttributes[attrInd + 5];
+                            bounds[1].x = constants->objAttributes[attrInd + 6];
+                            bounds[1].y = constants->objAttributes[attrInd + 7];
+                            bounds[1].z = constants->objAttributes[attrInd + 8];
                             normals[pos].x = 0.0f;
                             normals[pos].y = 0.0f;
                             normals[pos].z = 0.0f;
 
                             // Flat 
                             if (fabs(bounds[0].x - bounds[1].x) < E) {
-                                normals[pos].x = dir.x > 0 ? -1 : 1;
+                                normals[pos].x = dir.x > E ? -1 : 1;
                             }
                             else if (fabs(bounds[0].y - bounds[1].y) < E) {
-                                normals[pos].y = dir.y > 0 ? -1 : 1;
+                                normals[pos].y = dir.y > E ? -1 : 1;
                             }
                             else if (fabs(bounds[0].z - bounds[1].z) < E) {
-                                normals[pos].z = dir.z > 0 ? -1 : 1;
+                                normals[pos].z = dir.z > E ? -1 : 1;
                             }
-                            // Non Flat
-                            else if (fabs(posHit.x - bounds[0].x) < E)
+                            // Not Flat
+                            else if (fabs(OBBSpacePosHit.x - bounds[0].x) < E)
                                 normals[pos].x = -1;
-                            else if (fabs(posHit.x - bounds[1].x) < E)
+                            else if (fabs(OBBSpacePosHit.x - bounds[1].x) < E)
                                 normals[pos].x = 1;
-                            else if (fabs(posHit.y - bounds[0].y) < E)
+                            else if (fabs(OBBSpacePosHit.y - bounds[0].y) < E)
                                 normals[pos].y = -1;
-                            else if (fabs(posHit.y - bounds[1].y) < E)
+                            else if (fabs(OBBSpacePosHit.y - bounds[1].y) < E)
                                 normals[pos].y = 1;
-                            else if (fabs(posHit.z - bounds[0].z) < E)
+                            else if (fabs(OBBSpacePosHit.z - bounds[0].z) < E)
                                 normals[pos].z = -1;
-                            else if (fabs(posHit.z - bounds[1].z) < E)
+                            else if (fabs(OBBSpacePosHit.z - bounds[1].z) < E)
                                 normals[pos].z = 1;
+
+                            // Transform Normal
+                            float4 rot = {constants->objAttributes[attrInd + 9], -constants->objAttributes[attrInd + 10], -constants->objAttributes[attrInd + 11], -constants->objAttributes[attrInd + 12]};
+                            rotate(normals[pos], rot);
+                            normals[pos] = normalize(normals[pos]);
                         }
-                        else if (shapeTypeHit == 1) {
-                            normals[pos].x = posHit.x - constants->shapes[shapeHit][0];
-                            normals[pos].y = posHit.y - constants->shapes[shapeHit][1];
-                            normals[pos].z = posHit.z - constants->shapes[shapeHit][2];
+                        else if (shapeTypeHit == 0) {
+                            normals[pos].x = posHit.x - constants->objAttributes[attrInd+0];
+                            normals[pos].y = posHit.y - constants->objAttributes[attrInd+1];
+                            normals[pos].z = posHit.z - constants->objAttributes[attrInd+2];
                             normals[pos] = normalize(normals[pos]);
                         }
                     }
@@ -388,11 +530,11 @@
 
                             if material dielectric, choose whether to reflect or refract
                         */
-                        if (constants->shapes[shapeHit][6] == 3) {
+                        if (constants->matList[matInd][5] == 3) {
                             // Dielectric Material
                             shadowRays[pos] = 1;
-                            float blur = constants->shapes[shapeHit][14];
-                            float RI = 1.0 / constants->shapes[shapeHit][15];
+                            float blur = constants->matList[matInd][3];
+                            float RI = 1.0 / constants->matList[matInd][4];
                             float3 dirIn = dir;
                             float3 refNorm = normals[pos];
                             float cosi = dot(dirIn, refNorm);
@@ -408,17 +550,20 @@
 
                             // Can refract check
                             float sinSq = RI*RI*(1.0f-cosi*cosi);
-                            bool canRefract = 1.0f - sinSq > 0.0f;
+                            bool canRefract = 1.0f - sinSq > E;
                             
                             // Schlick approx
                             float r0 = (1.0f - RI) / (1.0f + RI);
                             r0 = r0 * r0;
                             float schlick = r0 + (1.0f - r0) * powf((1.0f - cosi), 5.0f);
+                            
+                            float schlickRand = RandBetween(s, 0, 1);
 
-                            if (!canRefract){//} || schlick > rands[2]) {
-                                dir.x = dirIn.x - 2.0f*cosi*refNorm.x + blur*randDir.x;
-                                dir.y = dirIn.y - 2.0f*cosi*refNorm.y + blur*randDir.y;
-                                dir.z = dirIn.z - 2.0f*cosi*refNorm.z + blur*randDir.z;
+                            if (!canRefract || schlick > schlickRand) {
+                                dir.x = (dirIn.x - 2.0f*cosi*refNorm.x)*(1.0f - blur) + blur*randDir.x;
+                                dir.y = (dirIn.y - 2.0f*cosi*refNorm.y)*(1.0f - blur) + blur*randDir.y;
+                                dir.z = (dirIn.z - 2.0f*cosi*refNorm.z)*(1.0f - blur) + blur*randDir.z;
+                                dir = normalize(dir);
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
                                 float cosine2 = dot(dir, normals[pos]);
                                 pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;
@@ -426,9 +571,9 @@
                             else {
 
                                 float refCalc = RI*cosi - sqrtf(1-sinSq);
-                                dir.x = RI*dirIn.x + refCalc*refNorm.x + blur*randDir.x;
-                                dir.y = RI*dirIn.y + refCalc*refNorm.y + blur*randDir.y;
-                                dir.z = RI*dirIn.z + refCalc*refNorm.z + blur*randDir.z;
+                                dir.x = (RI*dirIn.x + refCalc*refNorm.x)*(1.0f - blur) + blur*randDir.x;
+                                dir.y = (RI*dirIn.y + refCalc*refNorm.y)*(1.0f - blur) + blur*randDir.y;
+                                dir.z = (RI*dirIn.z + refCalc*refNorm.z)*(1.0f - blur) + blur*randDir.z;
                                 dir = normalize(dir);
 
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
@@ -437,19 +582,19 @@
                                 pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;					
                             }
                         }
-                        else if (constants->shapes[shapeHit][6] == 2) {
+                        else if (constants->matList[matInd][5] == 2) {
                             // Metal material
                             shadowRays[pos] = 1;
 
                             float3 dirIn = dir;
                             float3 refNorm = normals[pos];
-                            float blur = constants->shapes[shapeHit][14];
+                            float blur = constants->matList[matInd][3];
 
                             float prevDirNormalDot = dot(dirIn, refNorm);
 
-                            dir.x = dirIn.x - 2.0f*prevDirNormalDot*refNorm.x + blur*randDir.x;
-                            dir.y = dirIn.y - 2.0f*prevDirNormalDot*refNorm.y + blur*randDir.y;
-                            dir.z = dirIn.z - 2.0f*prevDirNormalDot*refNorm.z + blur*randDir.z;
+                            dir.x = (dirIn.x - 2.0f*prevDirNormalDot*refNorm.x)*(1.0f - blur) + blur*randDir.x;
+                            dir.y = (dirIn.y - 2.0f*prevDirNormalDot*refNorm.y)*(1.0f - blur) + blur*randDir.y;
+                            dir.z = (dirIn.z - 2.0f*prevDirNormalDot*refNorm.z)*(1.0f - blur) + blur*randDir.z;
 
                             float cosine2 = dot(dir, normals[pos]);
 
@@ -463,8 +608,8 @@
 
                             // Check Light Mat
                             bool mixPdf;
-                            int impInd, impShape;
-                            if (constants->shapes[shapeHit][6] == 1) {
+                            int impInd, impShape, impShapeAttrInd;
+                            if (constants->matList[matInd][5] == 1) {
                                 shadowRays[pos] = 1;
                                 mixPdf = false;
                             } else {
@@ -474,6 +619,7 @@
                                 if (mixPdf) { 
                                     impInd = rands[3] * constants->numImportantShapes * 0.99999f;
                                     impShape = constants->importantShapes[impInd];
+                                    impShapeAttrInd = constants->shapes[impShape][2];
                                     if (impShape==shapeHit) {
                                         mixPdf = false;
                                         // mixPdf = constants->numImportantShapes > 1;
@@ -492,16 +638,16 @@
                                 if (choosePdf) {
                                     // Generate dir towards importance shape
                                     float3 randPos {0.0f, 0.0f, 0.0f};
-                                    if (constants->shapes[impShape][7] == 0) {
+                                    if (constants->shapes[impShape][0] == 1) {
                                         // Gen three new random variables : [0, 1]
                                         float aabbRands[3];
                                         for (int n = 0; n < 3; n++) 
                                             aabbRands[n] = RandBetween(s, 0, 1);
-                                        randPos.x = (1.0f - aabbRands[0])*constants->shapes[impShape][8]  + aabbRands[0]*constants->shapes[impShape][11];
-                                        randPos.y = (1.0f - aabbRands[1])*constants->shapes[impShape][9]  + aabbRands[1]*constants->shapes[impShape][12];
-                                        randPos.z = (1.0f - aabbRands[2])*constants->shapes[impShape][10] + aabbRands[2]*constants->shapes[impShape][13];	
+                                        randPos.x = (1.0f - aabbRands[0])*constants->objAttributes[impShapeAttrInd+3] + aabbRands[0]*constants->objAttributes[impShapeAttrInd+6];
+                                        randPos.y = (1.0f - aabbRands[1])*constants->objAttributes[impShapeAttrInd+4] + aabbRands[1]*constants->objAttributes[impShapeAttrInd+7];
+                                        randPos.z = (1.0f - aabbRands[2])*constants->objAttributes[impShapeAttrInd+5] + aabbRands[2]*constants->objAttributes[impShapeAttrInd+8];	
                                     } 
-                                    else if (constants->shapes[impShape][7] == 1) {
+                                    else if (constants->shapes[impShape][7] == 0) {
 
                                         // Gen three new random variables : [-1, 1]
                                         float3 sphereRands;
@@ -510,9 +656,9 @@
                                         sphereRands.z = RandBetween(s, -1, 1);
                                         sphereRands = normalize(sphereRands);
 
-                                        randPos.x = constants->shapes[impShape][0] + sphereRands.x*constants->shapes[impShape][8];
-                                        randPos.y = constants->shapes[impShape][1] + sphereRands.y*constants->shapes[impShape][8];
-                                        randPos.z = constants->shapes[impShape][2] + sphereRands.z*constants->shapes[impShape][8];
+                                        randPos.x = constants->objAttributes[impShapeAttrInd+0] + sphereRands.x*constants->objAttributes[impShapeAttrInd+3];
+                                        randPos.y = constants->objAttributes[impShapeAttrInd+1] + sphereRands.y*constants->objAttributes[impShapeAttrInd+3];
+                                        randPos.z = constants->objAttributes[impShapeAttrInd+2] + sphereRands.z*constants->objAttributes[impShapeAttrInd+3];
                                     }
 
                                     float3 directDir;
@@ -529,7 +675,7 @@
                                     // Need to send shadow ray to see if point is in path of direct light
 
 
-                                    if (!ShadowIntersect(directDir, posHit, dirLen, impShape, constants)) {
+                                    if (!ShadowIntersect(directDir, posHit, dirLen, impShape, constants, randDir)) {
                                         float cosine = fabs(dot(directDir, randDir));
                                         if (cosine > 0.01f) {
                                             shadowRays[pos]=1; 
@@ -546,12 +692,12 @@
                                 }
                                 // 1
                                 float p1 = 0;
-                                if (constants->shapes[impShape][7] == 0) {
+                                if (constants->shapes[impShape][0] == 1) {
                                     // AABB pdf val
                                     float areaSum = 0;
-                                    float xDiff = constants->shapes[impShape][11] - constants->shapes[impShape][8];
-                                    float yDiff = constants->shapes[impShape][12] - constants->shapes[impShape][9];
-                                    float zDiff = constants->shapes[impShape][13] - constants->shapes[impShape][10];
+                                    float xDiff = constants->objAttributes[impShapeAttrInd+3] - constants->objAttributes[impShapeAttrInd+6];
+                                    float yDiff = constants->objAttributes[impShapeAttrInd+4] - constants->objAttributes[impShapeAttrInd+7];
+                                    float zDiff = constants->objAttributes[impShapeAttrInd+5] - constants->objAttributes[impShapeAttrInd+8];
                                     areaSum += xDiff * yDiff * 2.0f;
                                     areaSum += zDiff * yDiff * 2.0f;
                                     areaSum += xDiff * zDiff * 2.0f;
@@ -559,9 +705,9 @@
                                     cosine = cosine < 0.0001f ? 0.0001f : cosine;
 
                                     float3 diff;
-                                    diff.x = constants->shapes[impShape][0] - posHit.x;
-                                    diff.y = constants->shapes[impShape][1] - posHit.y;
-                                    diff.z = constants->shapes[impShape][2] - posHit.z;
+                                    diff.x = constants->objAttributes[impShapeAttrInd+0] - posHit.x;
+                                    diff.y = constants->objAttributes[impShapeAttrInd+1] - posHit.y;
+                                    diff.z = constants->objAttributes[impShapeAttrInd+2] - posHit.z;
                                     float dirLen = sqrtf(dot(diff, diff));
 
 
@@ -569,20 +715,20 @@
                                     //p1 = 1 / (cosine * areaSum);
                                     p1 = dirLen / (cosine * areaSum);
 
-                                } else if (constants->shapes[impShape][7] == 1) {
+                                } else if (constants->shapes[impShape][0] == 0) {
                                     // Sphere pdf val
-                                    float3 diff =   {constants->shapes[impShape][0]-posHit.x, 
-                                                     constants->shapes[impShape][1]-posHit.y, 
-                                                     constants->shapes[impShape][2]-posHit.z};
+                                    float3 diff =   {constants->objAttributes[impShapeAttrInd+0]-posHit.x, 
+                                                     constants->objAttributes[impShapeAttrInd+1]-posHit.y, 
+                                                     constants->objAttributes[impShapeAttrInd+2]-posHit.z};
                                     float distance_squared = dot(diff, diff);
-                                    float cos_theta_max = sqrtf(1 - constants->shapes[impShape][8] * constants->shapes[impShape][8] / distance_squared);
+                                    float cos_theta_max = sqrtf(1 - constants->objAttributes[impShapeAttrInd+3] * constants->objAttributes[impShapeAttrInd+3] / distance_squared);
                                     // NaN check
                                     cos_theta_max = (cos_theta_max != cos_theta_max) ? 0.9999f : cos_theta_max;
                                     float solid_angle = M_PI * (1.0f - cos_theta_max) *2.0f;
 
                                     // Sphere needs magic number for pdf calc, TODO: LOOK INTO, was too dark before
                                     //p1 = 1 / (solid_angle );
-                                    p1 = constants->shapes[impShape][8] / (solid_angle * sqrtf(distance_squared)*4.0f);
+                                    p1 = constants->objAttributes[impShapeAttrInd+3] / (solid_angle * sqrtf(distance_squared)*4.0f);
                                 }
 
                                 pdfVals[pos] = 0.5f*p0 + 0.5f*p1;
@@ -611,12 +757,12 @@
         for (int pos = numShapeHit-1; pos >=0; pos--) {
 
             int shapeHit = (int)rayPositions[pos].w;
+            int matInd = constants->shapes[shapeHit][1];
 
-            float3 albedo = {constants->shapes[shapeHit][3], 
-                                constants->shapes[shapeHit][4], 
-                                constants->shapes[shapeHit][5]};
-            int matType = (int)constants->shapes[shapeHit][6];	
-            int shapeType = (int)constants->shapes[shapeHit][7];
+            float3 albedo = {constants->matList[matInd][0], 
+                             constants->matList[matInd][1], 
+                             constants->matList[matInd][2]};
+            int matType = (int)constants->matList[matInd][5];	
         
             float3 normal = {normals[pos].x, normals[pos].y, normals[pos].z};
 
@@ -657,12 +803,14 @@
             ret->normal[0] = normals[0].x;
             ret->normal[1] = normals[0].y;
             ret->normal[2] = normals[0].z;
-            ret->albedo1[0] = constants->shapes[(int)rayPositions[0].w][3];
-            ret->albedo1[1] = constants->shapes[(int)rayPositions[0].w][4];
-            ret->albedo1[2] = constants->shapes[(int)rayPositions[0].w][5];
-            ret->albedo2[0] = constants->shapes[(int)rayPositions[1].w][3];
-            ret->albedo2[1] = constants->shapes[(int)rayPositions[1].w][4];
-            ret->albedo2[2] = constants->shapes[(int)rayPositions[1].w][5];
+            int matIndAlb1 = constants->shapes[(int)rayPositions[0].w][1];
+            ret->albedo1[0] =  constants->matList[matIndAlb1][0];
+            ret->albedo1[1] =  constants->matList[matIndAlb1][1];
+            ret->albedo1[2] =  constants->matList[matIndAlb1][2];
+            int matIndAlb2 = constants->shapes[(int)rayPositions[1].w][1];
+            ret->albedo2[0] =  constants->matList[matIndAlb2][0];
+            ret->albedo2[1] =  constants->matList[matIndAlb2][1];
+            ret->albedo2[2] =  constants->matList[matIndAlb2][2];
             ret->directLight = 0.0f;
             for (int c = 0; c<constants->maxDepth; c++)
                 ret->directLight += (float)shadowRays[c] / (float)constants->maxDepth;
@@ -688,14 +836,14 @@
 
             // Generate random seeds for each pixel
             for (int ind = 0; ind < numPixels; ind++) {
-                uint64_t s0 = constants.GloRandS[0];
-                uint64_t s1 = constants.GloRandS[1];
+                uint64_t s0 = renderer.GloRandS[0];
+                uint64_t s1 = renderer.GloRandS[1];
                 s1 ^= s0;
-                constants.GloRandS[0] = (s0 << 49) | ((s0 >> (64 - 49)) ^ s1 ^ (s1 << 21));
-                constants.GloRandS[1] = (s1 << 28) | (s1 >> (64 - 28));
+                renderer.GloRandS[0] = (s0 << 49) | ((s0 >> (64 - 49)) ^ s1 ^ (s1 << 21));
+                renderer.GloRandS[1] = (s1 << 28) | (s1 >> (64 - 28));
                 RandomSeeds s;
-                s.s1 = constants.GloRandS[0];
-                s.s2 = constants.GloRandS[1];
+                s.s1 = renderer.GloRandS[0];
+                s.s2 = renderer.GloRandS[1];
                 CUDASeeds[ind] = s;
             }
 

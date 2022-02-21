@@ -25,4 +25,7 @@
     - makes no sense !!!! 
     - Looking at it again, doesnt look right, going back to directDir
 
-7. CUDA back prop doesnt seem to be updating weights, need to debug 
+7. Main issue with SkePU is bening unable to store values in memory, they need to be in paramater space whcih is very limited
+
+8. Lambda functions work in SKePU user functions !!!! I thought they didnt for so long
+
