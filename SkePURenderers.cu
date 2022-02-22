@@ -3418,7 +3418,7 @@ void Renderers::SkePURender() {
 
         constants = Constants();
 
-        UpdateCam();
+        UpdateCam(false);
 
         constants.maxAngleH = tan(M_PI * cam.hfov/360.0f);
         constants.maxAngleV = tan(M_PI * cam.vfov/360.0f);
@@ -3491,8 +3491,10 @@ void Renderers::SkePURender() {
             numShapesAdded++;
         }
         constants.numShapes = numShapesAdded;
+
+        CUDARender::UpdateConstants();
     }
-    void Renderers::UpdateCam() {
+    void Renderers::UpdateCam(bool c) {
         vec3 camPos = cam.pos;
         vec3 camForward = cam.forward;
         vec3 camRight = cam.right;
@@ -3505,6 +3507,10 @@ void Renderers::SkePURender() {
 
         constants.RESH = xRes;
         constants.RESV = yRes;
+
+        if (c) {
+            CUDARender::UpdateConstants();    
+        }
     }
 
     void Renderers::CPUAutoExp() {

@@ -55,8 +55,6 @@ public:
         }
 
         renderTime = std::chrono::duration_cast<milli_second_>(clock_::now() - renderTimer).count();
-        totalTime += renderTime;
-
     }
 
     void CPURender();
@@ -66,7 +64,7 @@ public:
     void SkePURender();
 
     void UpdateConstants();
-    void UpdateCam();
+    void UpdateCam(bool c = true);
     
 
     void AutoExposure() {

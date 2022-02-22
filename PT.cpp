@@ -6,7 +6,7 @@ unsigned int mainTexture;
 float exposure, g, randSamp;
 int displayMetric, rootThreadsPerBlock;
 std::string skepuBackend;
-double renderTime, denoiseTime, epochTime, totalTime, exposureTime;
+double renderTime, denoiseTime, epochTime, totalTime, exposureTime, imguiTime, postProcessTime, screenUpdateTime;
 
 Scene scene;
 ImGuiWindowFlags window_flags;
@@ -80,19 +80,22 @@ PT::PT() :
 
     scene = Scene();
     scene.InitScene();
-    renderer.UpdateConstants();
 
     denoiser = Denoiser();
     denoiserNN = DenoiserNN();
 
     GLOBALS::InitScreens(true);
+
+    renderer.UpdateConstants();
+    renderer.UpdateCam();
 }
 
 void PT::RenderLoop() {
 
     while(!quit) {
 
-        ProcessInput();
+        auto frameTimer = clock_::now();
+
         ImGui();
 
         if (rendering) {
@@ -104,68 +107,29 @@ void PT::RenderLoop() {
 
         PostProcess();
 
+        auto screenUpdateTimer = clock_::now();
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, xRes, yRes, 0, GL_RGB, GL_FLOAT, &postScreen[0]);
-                
         SDL_GL_SwapWindow(sdlWindow);
-        
+        screenUpdateTime = std::chrono::duration_cast<milli_second_>(clock_::now() - screenUpdateTimer).count();
+
+        totalTime = std::chrono::duration_cast<milli_second_>(clock_::now() - frameTimer).count();
     }
 }
 
 void PT::PostProcess() {
-    vec3 col;
-    DenoisingInf info;
-    for (int ind = 0; ind < xRes*yRes; ind++) {
 
-        if (!denoising) {
-            col = preScreen[ind];
+    auto ppTimer = clock_::now();
 
-            // Samples
-            col /= sampleCount;
-        }
-        else {
-            switch(displayMetric) {
-                case 0:
-                    col = preScreen[ind] / sampleCount;
-                    break;
-                case 1:
-                    col = denoisedCol[ind];
-                    break;
-                case 2:
-                    col = ((normal[ind] / sampleCount)+vec3(1.0f, 1.0f, 1.0f)) / 2.0f;
-                    break;
-                case 3:
-                    col = albedo1[ind] / sampleCount;
-                    break;
-                case 4:
-                    col = albedo2[ind] / sampleCount;
-                    break;
-                case 5:
-                    col = directLight[ind] / sampleCount;
-                    break;
-                case 6:
-                    col = vec3(1.0f/fabs(worldPos[ind].x / sampleCount), 1.0f/fabs(worldPos[ind].y / sampleCount), 1.0f/fabs(worldPos[ind].z / sampleCount));
-                    break;
-                case 7:
-                    col = targetCol[ind];
-                    break;
-            }
-        }
+    CUDARender::PostProcess();
 
-        // Exposure
-        col /= exposure;
+    postProcessTime = std::chrono::duration_cast<milli_second_>(clock_::now() - ppTimer).count();
 
-        // Gamma
-        col = vec3(pow(col.x, 1.0f/g), pow(col.y, 1.0f/g), pow(col.z, 1.0f/g));
-
-        postScreen[ind] = col;
-
-    }
 }
 
 void PT::RefreshScreen(){
     if (moving) {
-        xRes = 1920*0.25f;
-        yRes = 1080*0.25f;
+        xRes = 1920*resPerc*0.5f;
+        yRes = 1080*resPerc*0.5f;
         moving = false;
         refresh = true;
         renderer.UpdateCam();
@@ -237,6 +201,10 @@ void PT::ProcessInput() {
 
 void PT::ImGui() {
 
+    auto imguiTimer = clock_::now();
+
+    ProcessInput();
+
 	// Start the Dear ImGui frame
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplSDL2_NewFrame(sdlWindow);
@@ -252,12 +220,20 @@ void PT::ImGui() {
     {
         ImGui::Begin("Settings", NULL, 0);
 
-        ImGui::Text("Last Frame Time %.3f ms", renderTime);
+        ImGui::Text("-----------------Time-----------------");
+
+        ImGui::Text("ImGui:        %.3f ms (%.3f %)", imguiTime, 100.0f*imguiTime/totalTime);
+        ImGui::Text("Render:       %.3f ms (%.3f %)", renderTime, 100.0f*renderTime/totalTime);
+        ImGui::Text("Post Process: %.3f ms (%.3f %)", postProcessTime, 100.0f*postProcessTime/totalTime);
+        ImGui::Text("Screen:       %.3f ms (%.3f %)", screenUpdateTime, 100.0f*screenUpdateTime/totalTime);
+        ImGui::Text("Total:        %.3f ms", totalTime);
+
+        ImGui::Text("-----------------Time-----------------");
+
         ImGui::Text("Rays Per Frame %d", rayCount);
         float numMillRays = rayCount / 1000000.0f;
         ImGui::Text("Time Per Million Rays %.3f", renderTime/numMillRays);
         ImGui::Text("Number of Samples %d", sampleCount);
-        ImGui::Text("Total Render Time %.3f s", totalTime / 1000.0f);
 
         refresh |= ImGui::SliderFloat("Resolution Strength ( 1920x1080 )", &resPerc, 0.01f, 2.0f);
         refresh |= ImGui::SliderFloat("Screen Size ( 1920x1080 )", &screenPerc, 0.01f, 2.0f);
@@ -322,12 +298,12 @@ void PT::ImGui() {
         ImGui::Begin("Objects", NULL, 0);
         ImGui::Text("-------------------Scene-------------------");
         ImGui::InputText("Scene Name", sceneName, IM_ARRAYSIZE(sceneName));
-        if (ImGui::Button("Save Scene"))
-            scene.SaveScene(sceneName);
         if (ImGui::Button("Load Scene")) {
             refresh |= scene.LoadScene(sceneName);
             objEdit = 0;
         }
+        if (ImGui::Button("Save Scene"))
+            scene.SaveScene(sceneName);
         ImGui::Text("-------------------Scene-------------------");
 
         if (ImGui::Button("New Sphere")) {
@@ -344,10 +320,13 @@ void PT::ImGui() {
         if (scene.objList.size() > 0) {
 
             ImGui::SliderInt("Obj Edit", &objEdit, 0, scene.objList.size()-1);
-
             ImGui::Text("Number of Objects: %d", scene.objList.size());
             ImGui::Text("-------------------Obj-------------------");
-            if (ImGui::Button("Remove Shape")) {
+            if (ImGui::Button("Copy Object")) {
+                scene.CopyObject(objEdit);
+                objEdit = scene.objList.size() - 1;
+            }
+            if (ImGui::Button("Remove Object")) {
                 scene.RemoveShape(objEdit);
                 refresh = true;
                 objEdit = 0;
@@ -466,8 +445,9 @@ void PT::ImGui() {
 
     ImGui::End();
 	ImGui::Render();
-	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());		
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());	
 
+    imguiTime = std::chrono::duration_cast<milli_second_>(clock_::now() - imguiTimer).count();
 }
 
 void PT::SaveImage(char * name) {

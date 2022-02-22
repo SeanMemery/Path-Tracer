@@ -17,7 +17,10 @@ extern bool denoising, moving, quit, rendering, refresh;
 extern unsigned int mainTexture; 
 extern std::string skepuBackend;
 extern float randSamp;
-extern double renderTime, denoiseTime, epochTime, totalTime, exposureTime;
+extern double denoiseTime, epochTime, exposureTime;
+
+// Total times
+extern double renderTime, imguiTime, postProcessTime, totalTime, screenUpdateTime;
 
 extern int rootThreadsPerBlock;
 

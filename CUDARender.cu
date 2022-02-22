@@ -824,16 +824,6 @@
         void CUDARender::render() {
             int numPixels = xRes*yRes;
 
-            RandomSeeds*  CUDASeeds;
-            Constants*    CUDAConstants;
-            ReturnStruct* CUDAReturn;
-
-            cudaMallocManaged(&CUDASeeds,     numPixels*sizeof(RandomSeeds));
-            cudaMallocManaged(&CUDAConstants, sizeof(Constants));
-            cudaMallocManaged(&CUDAReturn,    numPixels*sizeof(ReturnStruct));
-
-            memcpy(CUDAConstants, &constants, sizeof(Constants));
-
             // Generate random seeds for each pixel
             for (int ind = 0; ind < numPixels; ind++) {
                 uint64_t s0 = renderer.GloRandS[0];
@@ -855,6 +845,9 @@
             // Wait for GPU to finish before accessing on host
             cudaDeviceSynchronize();
 
+
+
+            // TODO: Looping like this takes time (16ms ? ) definitely eating into render time
             ReturnStruct ret;
             sampleCount++;
             rayCount = 0;
@@ -904,8 +897,137 @@
                 }
             }  
 
-            // Free memory
-            cudaFree(CUDASeeds);
-            cudaFree(CUDAConstants);
-            cudaFree(CUDAReturn);
         }
+
+void CUDARender::UpdateConstants() {
+
+        // Frame Vals
+            cudaFree(CUDASeeds);
+            cudaFree(CUDAReturn);
+            cudaMallocManaged(&CUDASeeds,  xRes*yRes*sizeof(RandomSeeds));
+            cudaMallocManaged(&CUDAReturn, xRes*yRes*sizeof(ReturnStruct));
+        // Frame Vals
+
+        // Post Process
+            cudaFree(CUDAPostScreen);
+            cudaFree(CUDADisplay);
+            cudaMallocManaged(&CUDAPostScreen, xRes*yRes*sizeof(float3));
+            cudaMallocManaged(&CUDADisplay,    xRes*yRes*sizeof(float3));
+        // Post Process
+
+        // Constants
+            cudaFree(CUDAConstants);
+            cudaMallocManaged(&CUDAConstants,     sizeof(Constants));
+            cudaMemcpy(CUDAConstants, &constants, sizeof(Constants), cudaMemcpyHostToDevice);
+        // Constants
+
+}
+
+__global__
+void CUDAPostProcess(float3* postScreen, float3* display, int xRes, int yRes, int sampleCount, float exposure, float g, int displayMetric) {
+    float3 col;
+    uint i = (blockIdx.x * blockDim.x) + threadIdx.x;
+    uint j = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    if (i >= xRes || j >= yRes)
+        return;
+
+    int ind = j*xRes + i;
+
+        switch(displayMetric) {
+            case 0:
+                col.x = display[ind].x / sampleCount;
+                col.y = display[ind].y / sampleCount;
+                col.z = display[ind].z / sampleCount;
+                break;
+            case 1:
+                col.x = display[ind].x;
+                col.y = display[ind].y;
+                col.z = display[ind].z;
+                break;
+            case 2:
+                col.x = (display[ind].x / sampleCount + 1.0f)/2.0f;
+                col.y = (display[ind].y / sampleCount + 1.0f)/2.0f;
+                col.z = (display[ind].z / sampleCount + 1.0f)/2.0f;
+                break;
+            case 3:
+                col.x = display[ind].x / sampleCount;
+                col.y = display[ind].y / sampleCount;
+                col.z = display[ind].z / sampleCount;
+                break;
+            case 4:
+                col.x = display[ind].x / sampleCount;
+                col.y = display[ind].y / sampleCount;
+                col.z = display[ind].z / sampleCount;                
+                break;
+            case 5:
+                col.x = display[ind].x / sampleCount;
+                col.y = display[ind].y / sampleCount;
+                col.z = display[ind].z / sampleCount;
+                break;
+            case 6:
+                col.x = 1.0f/(display[ind].x / sampleCount);
+                col.y = 1.0f/(display[ind].y / sampleCount);
+                col.z = 1.0f/(display[ind].z / sampleCount);
+                break;
+            case 7:
+                col.x = display[ind].x;
+                col.y = display[ind].y;
+                col.z = display[ind].z;
+                break;
+        }
+
+    // Exposure
+    col.x = col.x / exposure;
+    col.y = col.y / exposure;
+    col.z = col.z / exposure;
+
+    // Gamma
+    col = float3 {powf(col.x, 1.0f/g), powf(col.y, 1.0f/g), powf(col.z, 1.0f/g)};
+    postScreen[ind] = col;
+
+}
+
+void CUDARender::PostProcess() {
+
+    auto size = xRes*yRes*sizeof(float3);
+
+    switch(displayMetric) {
+            case 0:
+                cudaMemcpy(CUDADisplay, preScreen,   size, cudaMemcpyHostToDevice);
+                break;
+            case 1:
+                cudaMemcpy(CUDADisplay, denoisedCol, size, cudaMemcpyHostToDevice);
+                break;
+            case 2:
+                cudaMemcpy(CUDADisplay, normal,      size, cudaMemcpyHostToDevice);
+                break;
+            case 3:
+                cudaMemcpy(CUDADisplay, albedo1,     size, cudaMemcpyHostToDevice);
+                break;
+            case 4:
+                cudaMemcpy(CUDADisplay, albedo2,     size, cudaMemcpyHostToDevice);
+                break;
+            case 5:
+                cudaMemcpy(CUDADisplay, directLight, size, cudaMemcpyHostToDevice);
+                break;
+            case 6:
+                cudaMemcpy(CUDADisplay, worldPos,    size, cudaMemcpyHostToDevice);
+                break;
+            case 7:
+                cudaMemcpy(CUDADisplay, targetCol,   size, cudaMemcpyHostToDevice);
+                break;
+        }
+
+    dim3 numBlocks(xRes/rootThreadsPerBlock + 1, 
+                yRes/rootThreadsPerBlock + 1); 
+
+    CUDAPostProcess<<<numBlocks,dim3(rootThreadsPerBlock, rootThreadsPerBlock)>>>(CUDAPostScreen, CUDADisplay, xRes, yRes, sampleCount, exposure, g, displayMetric );       
+    
+    // Wait for GPU to finish before accessing on host
+    cudaDeviceSynchronize();
+
+    // Update Post Screen
+    cudaMemcpy(postScreen, CUDAPostScreen, size,cudaMemcpyDeviceToHost);
+            
+}

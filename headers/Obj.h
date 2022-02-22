@@ -186,6 +186,8 @@ public:
 			rot.y = tempRot[1];
 			rot.z = tempRot[2];
 
+			UpdateRot();
+
 			ref = true;
 		}
 		return ref;

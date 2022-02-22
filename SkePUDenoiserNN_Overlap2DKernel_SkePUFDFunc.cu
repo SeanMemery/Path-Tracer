@@ -8,7 +8,7 @@ __global__ void SkePUDenoiserNN_Overlap2DKernel_SkePUFDFunc_conv_cuda_2D_kernel(
 	skepu::Edge skepu_edge, struct FilterDerivIn skepu_pad
 )
 {
-  extern __shared__ struct FilterDerivIn sdata_skepu_skel_1[];
+  extern __shared__ struct FilterDerivIn sdata_skepu_skel_0[];
 	size_t skepu_xx = blockIdx.x * blockDim.x;
 	size_t skepu_yy = blockIdx.y * blockDim.y;
 
@@ -29,20 +29,20 @@ __global__ void SkePUDenoiserNN_Overlap2DKernel_SkePUFDFunc_conv_cuda_2D_kernel(
 				int skepu_global_y = (skepu_yy + skepu_shared_y - skepu_overlap_y);
 				
 				if ((skepu_global_y >= 0 && skepu_global_y < skepu_in_rows) && (skepu_global_x >= 0 && skepu_global_x < skepu_in_cols))
-					sdata_skepu_skel_1[skepu_sharedIdx] = skepu_input[skepu_global_y * skepu_in_cols + skepu_global_x];
+					sdata_skepu_skel_0[skepu_sharedIdx] = skepu_input[skepu_global_y * skepu_in_cols + skepu_global_x];
 				else
 				{
 					if (skepu_edge == skepu::Edge::Pad)
-						sdata_skepu_skel_1[skepu_sharedIdx] = skepu_pad;
+						sdata_skepu_skel_0[skepu_sharedIdx] = skepu_pad;
 					else if (skepu_edge == skepu::Edge::Duplicate)
 					{
-						sdata_skepu_skel_1[skepu_sharedIdx] = skepu_input[
+						sdata_skepu_skel_0[skepu_sharedIdx] = skepu_input[
 							skepu::cuda::clamp(skepu_global_y, 0, (int)skepu_in_rows - 1) * skepu_in_cols +
 							skepu::cuda::clamp(skepu_global_x, 0, (int)skepu_in_cols - 1)];
 					}
 					else if (skepu_edge == skepu::Edge::Cyclic)
 					{
-						sdata_skepu_skel_1[skepu_sharedIdx] = skepu_input[
+						sdata_skepu_skel_0[skepu_sharedIdx] = skepu_input[
 							((skepu_global_y + skepu_in_rows) % skepu_in_rows) * skepu_in_cols +
 							((skepu_global_x + skepu_in_cols) % skepu_in_cols)];
 					}
@@ -67,7 +67,7 @@ __global__ void SkePUDenoiserNN_Overlap2DKernel_SkePUFDFunc_conv_cuda_2D_kernel(
 		size_t skepu_base = 0;
 		
 		
-		auto skepu_res = skepu_userfunction_skepu_skel_1convol_SkePUFDFunc::CU({(int)skepu_overlap_y, (int)skepu_overlap_x, skepu_sharedCols, &sdata_skepu_skel_1[(threadIdx.y + skepu_overlap_y) * skepu_sharedCols + (threadIdx.x + skepu_overlap_x)]}, samples);
+		auto skepu_res = skepu_userfunction_skepu_skel_0convol_SkePUFDFunc::CU({(int)skepu_overlap_y, (int)skepu_overlap_x, skepu_sharedCols, &sdata_skepu_skel_0[(threadIdx.y + skepu_overlap_y) * skepu_sharedCols + (threadIdx.x + skepu_overlap_x)]}, samples);
 		skepu_output[skepu_i] = skepu_res;
 	}
 }

@@ -78,6 +78,37 @@ public:
             }
     }
 
+    void CopyObject(int obj) {
+        if (obj < 0 || obj >= objList.size())
+            return;
+        auto objToCopy = objList[obj];
+        auto type = objToCopy->type;
+        // Sphere
+        if (type==0) {
+            auto sphereToCopy      = std::dynamic_pointer_cast<Sphere>(objToCopy);
+            auto sphereNewCopy     = std::make_shared<Sphere>();  
+            sphereNewCopy->pos     = sphereToCopy->pos;
+            sphereNewCopy->mat_ind = sphereToCopy->mat_ind;
+            sphereNewCopy->r       = sphereToCopy->r;
+            sphereNewCopy->inImportantList = sphereToCopy->inImportantList;
+            objList.push_back(sphereNewCopy);
+        }
+        // OBB
+        else if (type==1) {
+            auto obbToCopy = std::dynamic_pointer_cast<AABB>(objToCopy);
+            auto obbNewCopy = std::make_shared<AABB>();  
+            obbNewCopy->pos     = obbToCopy->pos;
+            obbNewCopy->mat_ind = obbToCopy->mat_ind;
+            obbNewCopy->min     = obbToCopy->min;
+            obbNewCopy->max     = obbToCopy->max;
+            obbNewCopy->rot     = obbToCopy->rot;
+            obbNewCopy->UpdateRot();
+            obbNewCopy->inImportantList = obbToCopy->inImportantList;
+            objList.push_back(obbNewCopy);
+        }
+        return;
+    }
+
     void AddMat(int type) {
         matList.push_back(std::make_shared<Mat>(type, vec3(1,1,1), 0, 1));
     }
@@ -87,6 +118,7 @@ public:
     // d posx posy posz (radius mat)/(minx miny minz maxx maxy max mat)
     // m albx alby albz blur RI type
     // i impInd
+    // c posx posy posz fx fy fz ux uy uz rx ry rz vfov hfov
 
     bool LoadScene(std::string name) {
         std::string path = std::string("../Scenes/").append(name).append(".scene");
@@ -114,6 +146,18 @@ public:
                 int ind;
                 sscanf (chh, "i %i", &ind );
                 AddToImpList(ind);
+            }
+            // Check for camera
+            else if (line.substr(0,2)=="c ") {
+                const char* chh=line.c_str();
+                float posx, posy, posz, fx, fy, fz, ux, uy, uz, rx, ry, rz, vfov, hfov;
+                sscanf (chh, "c %f/%f/%f %f/%f/%f %f/%f/%f %f/%f/%f %f %f", &posx, &posy, &posz, &fx, &fy, &fz, &ux, &uy, &uz, &rx, &ry, &rz, &vfov, &hfov);
+                cam.pos     = vec3(posx, posy, posz);
+                cam.forward = vec3(fx, fy, fz);
+                cam.up      = vec3(ux, uy, uz);
+                cam.right   = vec3(rx, ry, rz);
+                cam.vfov    = vfov;
+                cam.hfov    = hfov;
             }
             // Check for materials
             else if (line.substr(0,2)=="m "){
@@ -197,6 +241,12 @@ public:
         for (auto i : importantList) {
             outString << "i " << i << "\n";
         }
+
+        outString << "c " << cam.pos.x     << "/" << cam.pos.y     << "/" << cam.pos.z     << " " <<
+                             cam.forward.x << "/" << cam.forward.y << "/" << cam.forward.z << " " <<
+                             cam.up.x      << "/" << cam.up.y      << "/" << cam.up.z      << " " <<
+                             cam.right.x   << "/" << cam.right.y   << "/" << cam.right.z   << " " <<
+                             cam.vfov      << " " << cam.hfov      << "\n";
 
         std::ofstream myfile;
         std::stringstream fileName;
