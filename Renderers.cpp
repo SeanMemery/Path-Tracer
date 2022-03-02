@@ -443,9 +443,11 @@
                                     else if ( sConstants.shapes[impShape][0] == 0) {
                                         // Gen three new random variables : [-1, 1]
                                         float sphereRands[3];
-                                        for (int n = 0; n < 3; n++) 
-                                            sphereRands[n] = randBetween( seeds, -1,1);
+                                        sphereRands[0] = randBetween( seeds, -1,1);
+                                        sphereRands[1] = randBetween( seeds, -1,1);
+                                        sphereRands[2] = randBetween( seeds, -1,1);
                                         norm(sphereRands);
+                                        
                                         randPos[0] =  sConstants.objAttributes[impAttrInd+0] + sphereRands[0]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[1] =  sConstants.objAttributes[impAttrInd+1] + sphereRands[1]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[2] =  sConstants.objAttributes[impAttrInd+2] + sphereRands[2]* sConstants.objAttributes[impAttrInd+3];
@@ -530,7 +532,7 @@
                                             float tca = L[0]*shadowDir[0] + L[1]*shadowDir[1] + L[2]*shadowDir[2];
                                             if (tca < E)
                                                 continue;
-                                            float dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
+                                            float dsq = dot(L,L) - tca * tca;
                                             float radiusSq =  sConstants.objAttributes[aInd+3] *  sConstants.objAttributes[aInd+3];
                                             if (radiusSq - dsq < E)
                                                 continue;
@@ -1135,29 +1137,26 @@
         }
     }
 
-    static float SkePUExposureFuncCalc(vec3 col, int numPixels, int numSamples) {
-        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/((float)numPixels*numSamples);
-    }
-    static float SkePUExposureFuncSum(float exp1, float exp2) {
-        return exp1 + exp2;
+    static float SkePUExposureFuncCalc(vec3 col, float div) {
+        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/div;
     }
 
     void Renderers::SkePUAutoExp() {
 
-        int mumPixels = xRes*yRes;
-        auto screen = skepu::Vector<vec3>(mumPixels);
+        int numPixels = xRes*yRes;
+        auto screen = skepu::Vector<vec3>(numPixels);
 
-        for (int ind =0; ind < mumPixels; ind++) {
+        for (int ind =0; ind < numPixels; ind++) {
             screen(ind) = preScreen[ind];
         }
 
         // Configure SkePU
         auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(skepuBackend)};
         spec.activateBackend();
-        auto exposureFunc = skepu::MapReduce<1>(SkePUExposureFuncCalc, SkePUExposureFuncSum);
+        auto exposureFunc = skepu::MapReduce<1>(SkePUExposureFuncCalc, skepu::util::add<float>);
         exposureFunc.setBackend(spec);
 
-        exposure = 9.6f * exposureFunc(screen, mumPixels, sampleCount);
+        exposure = 9.6f * exposureFunc(screen, numPixels*sampleCount);
     }
 
 

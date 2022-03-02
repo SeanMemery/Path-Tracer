@@ -618,8 +618,7 @@
 
                                 if (mixPdf) { 
                                     impInd = rands[3] * constants->numImportantShapes * 0.99999f;
-                                    impShape = constants->importantShapes[impInd];
-                                    impShapeAttrInd = constants->shapes[impShape][2];
+                                    impShape = constants->importantShapes[impInd]; 
                                     if (impShape==shapeHit) {
                                         mixPdf = false;
                                         // mixPdf = constants->numImportantShapes > 1;
@@ -634,6 +633,7 @@
                                 // 0
                                 float p0 = 1.0f / M_PI;
                                 bool choosePdf = rands[4] > 0.65f;
+                                impShapeAttrInd = constants->shapes[impShape][2];
                                 // dot(randomly generated dir, ray dir) / PI
                                 if (choosePdf) {
                                     // Generate dir towards importance shape
@@ -647,7 +647,7 @@
                                         randPos.y = (1.0f - aabbRands[1])*constants->objAttributes[impShapeAttrInd+4] + aabbRands[1]*constants->objAttributes[impShapeAttrInd+7];
                                         randPos.z = (1.0f - aabbRands[2])*constants->objAttributes[impShapeAttrInd+5] + aabbRands[2]*constants->objAttributes[impShapeAttrInd+8];	
                                     } 
-                                    else if (constants->shapes[impShape][7] == 0) {
+                                    else if (constants->shapes[impShape][0] == 0) {
 
                                         // Gen three new random variables : [-1, 1]
                                         float3 sphereRands;
@@ -1030,4 +1030,37 @@ void CUDARender::PostProcess() {
     // Update Post Screen
     cudaMemcpy(postScreen, CUDAPostScreen, size,cudaMemcpyDeviceToHost);
             
+}
+
+__global__
+void CUDAAE(float3* CUDADisplay, float* gpuExposure, int xRes, int yRes, int sampleCount) {
+    uint i = (blockIdx.x * blockDim.x) + threadIdx.x;
+    uint j = (blockIdx.y * blockDim.y) + threadIdx.y;
+    if (i >= xRes || j >= yRes)
+        return;
+    int ind = j*xRes + i;
+    float3 col = CUDADisplay[ind];
+    gpuExposure[ind] = 9.6f * (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/((float)xRes*yRes*sampleCount);
+}
+
+void CUDARender::CUDAAutoExp() {
+    
+    float* gpuExposure;
+    cudaMallocManaged(&gpuExposure, xRes*yRes*sizeof(float));
+
+    cudaMemcpy(CUDADisplay, preScreen, xRes*yRes, cudaMemcpyHostToDevice);
+
+    dim3 numBlocks(xRes/rootThreadsPerBlock + 1, 
+                yRes/rootThreadsPerBlock + 1); 
+
+    CUDAAE<<<numBlocks,dim3(rootThreadsPerBlock, rootThreadsPerBlock)>>>(CUDADisplay, gpuExposure, xRes, yRes, sampleCount);       
+    
+    // Wait for GPU to finish before accessing on host
+    cudaDeviceSynchronize();
+
+    exposure = 0;
+    for (int ind =0; ind<xRes*yRes;ind++)
+        exposure += gpuExposure[ind];
+
+    cudaFree(gpuExposure);
 }

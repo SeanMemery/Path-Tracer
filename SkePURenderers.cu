@@ -446,9 +446,11 @@
                                     else if ( sConstants.shapes[impShape][0] == 0) {
                                         // Gen three new random variables : [-1, 1]
                                         float sphereRands[3];
-                                        for (int n = 0; n < 3; n++) 
-                                            sphereRands[n] = randBetween( seeds, -1,1);
+                                        sphereRands[0] = randBetween( seeds, -1,1);
+                                        sphereRands[1] = randBetween( seeds, -1,1);
+                                        sphereRands[2] = randBetween( seeds, -1,1);
                                         norm(sphereRands);
+                                        
                                         randPos[0] =  sConstants.objAttributes[impAttrInd+0] + sphereRands[0]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[1] =  sConstants.objAttributes[impAttrInd+1] + sphereRands[1]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[2] =  sConstants.objAttributes[impAttrInd+2] + sphereRands[2]* sConstants.objAttributes[impAttrInd+3];
@@ -533,7 +535,7 @@
                                             float tca = L[0]*shadowDir[0] + L[1]*shadowDir[1] + L[2]*shadowDir[2];
                                             if (tca < E)
                                                 continue;
-                                            float dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
+                                            float dsq = dot(L,L) - tca * tca;
                                             float radiusSq =  sConstants.objAttributes[aInd+3] *  sConstants.objAttributes[aInd+3];
                                             if (radiusSq - dsq < E)
                                                 continue;
@@ -1403,9 +1405,11 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                     else if ( sConstants.shapes[impShape][0] == 0) {
                                         // Gen three new random variables : [-1, 1]
                                         float sphereRands[3];
-                                        for (int n = 0; n < 3; n++) 
-                                            sphereRands[n] = randBetween( seeds, -1,1);
+                                        sphereRands[0] = randBetween( seeds, -1,1);
+                                        sphereRands[1] = randBetween( seeds, -1,1);
+                                        sphereRands[2] = randBetween( seeds, -1,1);
                                         norm(sphereRands);
+                                        
                                         randPos[0] =  sConstants.objAttributes[impAttrInd+0] + sphereRands[0]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[1] =  sConstants.objAttributes[impAttrInd+1] + sphereRands[1]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[2] =  sConstants.objAttributes[impAttrInd+2] + sphereRands[2]* sConstants.objAttributes[impAttrInd+3];
@@ -1490,7 +1494,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                             float tca = L[0]*shadowDir[0] + L[1]*shadowDir[1] + L[2]*shadowDir[2];
                                             if (tca < E)
                                                 continue;
-                                            float dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
+                                            float dsq = dot(L,L) - tca * tca;
                                             float radiusSq =  sConstants.objAttributes[aInd+3] *  sConstants.objAttributes[aInd+3];
                                             if (radiusSq - dsq < E)
                                                 continue;
@@ -2195,9 +2199,11 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                     else if ( sConstants.shapes[impShape][0] == 0) {
                                         // Gen three new random variables : [-1, 1]
                                         float sphereRands[3];
-                                        for (int n = 0; n < 3; n++) 
-                                            sphereRands[n] = randBetween( seeds, -1,1);
+                                        sphereRands[0] = randBetween( seeds, -1,1);
+                                        sphereRands[1] = randBetween( seeds, -1,1);
+                                        sphereRands[2] = randBetween( seeds, -1,1);
                                         norm(sphereRands);
+                                        
                                         randPos[0] =  sConstants.objAttributes[impAttrInd+0] + sphereRands[0]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[1] =  sConstants.objAttributes[impAttrInd+1] + sphereRands[1]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[2] =  sConstants.objAttributes[impAttrInd+2] + sphereRands[2]* sConstants.objAttributes[impAttrInd+3];
@@ -2282,7 +2288,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                             float tca = L[0]*shadowDir[0] + L[1]*shadowDir[1] + L[2]*shadowDir[2];
                                             if (tca < E)
                                                 continue;
-                                            float dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
+                                            float dsq = dot(L,L) - tca * tca;
                                             float radiusSq =  sConstants.objAttributes[aInd+3] *  sConstants.objAttributes[aInd+3];
                                             if (radiusSq - dsq < E)
                                                 continue;
@@ -2987,9 +2993,11 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                     else if ( sConstants.shapes[impShape][0] == 0) {
                                         // Gen three new random variables : [-1, 1]
                                         float sphereRands[3];
-                                        for (int n = 0; n < 3; n++) 
-                                            sphereRands[n] = randBetween( seeds, -1,1);
+                                        sphereRands[0] = randBetween( seeds, -1,1);
+                                        sphereRands[1] = randBetween( seeds, -1,1);
+                                        sphereRands[2] = randBetween( seeds, -1,1);
                                         norm(sphereRands);
+                                        
                                         randPos[0] =  sConstants.objAttributes[impAttrInd+0] + sphereRands[0]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[1] =  sConstants.objAttributes[impAttrInd+1] + sphereRands[1]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[2] =  sConstants.objAttributes[impAttrInd+2] + sphereRands[2]* sConstants.objAttributes[impAttrInd+3];
@@ -3074,7 +3082,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                             float tca = L[0]*shadowDir[0] + L[1]*shadowDir[1] + L[2]*shadowDir[2];
                                             if (tca < E)
                                                 continue;
-                                            float dsq = L[0]*L[0] + L[1]*L[1] + L[2]*L[2] - tca * tca;
+                                            float dsq = dot(L,L) - tca * tca;
                                             float radiusSq =  sConstants.objAttributes[aInd+3] *  sConstants.objAttributes[aInd+3];
                                             if (radiusSq - dsq < E)
                                                 continue;
@@ -3536,17 +3544,14 @@ void Renderers::SkePURender() {
         }
     }
 
-    static float SkePUExposureFuncCalc(vec3 col, int numPixels, int numSamples) {
-        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/((float)numPixels*numSamples);
-    }
-    static float SkePUExposureFuncSum(float exp1, float exp2) {
-        return exp1 + exp2;
+    static float SkePUExposureFuncCalc(vec3 col, float div) {
+        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/div;
     }
 
     
 struct skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncCalc
 {
-constexpr static size_t totalArity = 3;
+constexpr static size_t totalArity = 2;
 constexpr static size_t outArity = 1;
 constexpr static bool indexed = 0;
 constexpr static bool usesPRNG = 0;
@@ -3554,7 +3559,7 @@ constexpr static size_t randomCount = SKEPU_NO_RANDOM;
 using IndexType = void;
 using ElwiseArgs = std::tuple<class vec3>;
 using ContainerArgs = std::tuple<>;
-using UniformArgs = std::tuple<int, int>;
+using UniformArgs = std::tuple<float>;
 typedef std::tuple<> ProxyTags;
 constexpr static skepu::AccessMode anyAccessMode[] = {
 };
@@ -3570,9 +3575,9 @@ constexpr static bool prefersMatrix = 0;
 #define VARIANT_CPU(block)
 #define VARIANT_OPENMP(block)
 #define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(class vec3 col, int numPixels, int numSamples)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(class vec3 col, float div)
 {
-        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/((float)numPixels*numSamples);
+        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/div;
    
 }
 #undef SKEPU_USING_BACKEND_CUDA
@@ -3584,9 +3589,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(class vec3 col, i
 #define VARIANT_CPU(block)
 #define VARIANT_OPENMP(block) block
 #define VARIANT_CUDA(block)
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(class vec3 col, int numPixels, int numSamples)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(class vec3 col, float div)
 {
-        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/((float)numPixels*numSamples);
+        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/div;
    
 }
 #undef SKEPU_USING_BACKEND_OMP
@@ -3598,17 +3603,18 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(class vec3 col, int numPixe
 #define VARIANT_CPU(block) block
 #define VARIANT_OPENMP(block)
 #define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(class vec3 col, int numPixels, int numSamples)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(class vec3 col, float div)
 {
-        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/((float)numPixels*numSamples);
+        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/div;
    
 }
 #undef SKEPU_USING_BACKEND_CPU
 };
 
 
-struct skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncSum
+struct skepu_userfunction_skepu_skel_0exposureFunc_add_float
 {
+using T = float;
 constexpr static size_t totalArity = 2;
 constexpr static size_t outArity = 1;
 constexpr static bool indexed = 0;
@@ -3633,10 +3639,9 @@ constexpr static bool prefersMatrix = 0;
 #define VARIANT_CPU(block)
 #define VARIANT_OPENMP(block)
 #define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(float exp1, float exp2)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(float lhs, float rhs)
 {
-        return exp1 + exp2;
-   
+  return lhs + rhs;
 }
 #undef SKEPU_USING_BACKEND_CUDA
 
@@ -3647,10 +3652,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(float exp1, float
 #define VARIANT_CPU(block)
 #define VARIANT_OPENMP(block) block
 #define VARIANT_CUDA(block)
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(float exp1, float exp2)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(float lhs, float rhs)
 {
-        return exp1 + exp2;
-   
+  return lhs + rhs;
 }
 #undef SKEPU_USING_BACKEND_OMP
 
@@ -3661,31 +3665,30 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(float exp1, float exp2)
 #define VARIANT_CPU(block) block
 #define VARIANT_OPENMP(block)
 #define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(float exp1, float exp2)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(float lhs, float rhs)
 {
-        return exp1 + exp2;
-   
+  return lhs + rhs;
 }
 #undef SKEPU_USING_BACKEND_CPU
 };
 
-#include "skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_SkePUExposureFuncSum.cu"
+#include "skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float.cu"
 void Renderers::SkePUAutoExp() {
 
-        int mumPixels = xRes*yRes;
-        auto screen = skepu::Vector<vec3>(mumPixels);
+        int numPixels = xRes*yRes;
+        auto screen = skepu::Vector<vec3>(numPixels);
 
-        for (int ind =0; ind < mumPixels; ind++) {
+        for (int ind =0; ind < numPixels; ind++) {
             screen(ind) = preScreen[ind];
         }
 
         // Configure SkePU
         auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(skepuBackend)};
         spec.activateBackend();
-        skepu::backend::MapReduce<1, skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncCalc, skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncSum, decltype(&skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_SkePUExposureFuncSum), decltype(&skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_SkePUExposureFuncSum_ReduceOnly), void> exposureFunc(skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_SkePUExposureFuncSum, skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_SkePUExposureFuncSum_ReduceOnly);
+        skepu::backend::MapReduce<1, skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncCalc, skepu_userfunction_skepu_skel_0exposureFunc_add_float, decltype(&skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float), decltype(&skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float_ReduceOnly), void> exposureFunc(skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float, skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float_ReduceOnly);
         exposureFunc.setBackend(spec);
 
-        exposure = 9.6f * exposureFunc(screen, mumPixels, sampleCount);
+        exposure = 9.6f * exposureFunc(screen, numPixels*sampleCount);
     }
 
 

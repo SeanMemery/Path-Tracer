@@ -2282,7 +2282,224 @@ static SkePUBPOut SkePUBPFunc(SkePUBPIn f, int samples, float learningRate) {
         return out;
 }
 
-struct skepu_userfunction_skepu_skel_0convol_SkePUFDFunc
+struct skepu_userfunction_skepu_skel_0map_SkePUBPFunc
+{
+constexpr static size_t totalArity = 3;
+constexpr static size_t outArity = 1;
+constexpr static bool indexed = 0;
+constexpr static bool usesPRNG = 0;
+constexpr static size_t randomCount = SKEPU_NO_RANDOM;
+using IndexType = void;
+using ElwiseArgs = std::tuple<SkePUBPIn>;
+using ContainerArgs = std::tuple<>;
+using UniformArgs = std::tuple<int, float>;
+typedef std::tuple<> ProxyTags;
+constexpr static skepu::AccessMode anyAccessMode[] = {
+};
+
+using Ret = SkePUBPOut;
+
+constexpr static bool prefersMatrix = 0;
+
+#define SKEPU_USING_BACKEND_CUDA 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ SkePUBPOut CU(SkePUBPIn f, int samples, float learningRate)
+{
+
+            float paramOverWeight, dot;
+            float errorOverColour[3];
+            float colourOverParam[3];
+
+            SkePUBPOut out;
+
+            // Derivative One: samples * (cFiltered - cTarget)/(cTarget*cTarget)
+            errorOverColour[0] = samples * (f.denoisedCol[0] - f.targetCol[0]) / (f.targetCol[0]*f.targetCol[0]+0.0001f);
+            errorOverColour[1] = samples * (f.denoisedCol[1] - f.targetCol[1]) / (f.targetCol[1]*f.targetCol[1]+0.0001f);
+            errorOverColour[2] = samples * (f.denoisedCol[2] - f.targetCol[2]) / (f.targetCol[2]*f.targetCol[2]+0.0001f);
+
+            // Filter Paramaters (index, col, K)
+            int w;
+            for (int var=0;var<7;var++) {
+
+                // Derivative Two: cross-bilateral filter derivative
+                colourOverParam[0] = f.deriv.paramXYZ[var][0];
+                colourOverParam[1] = f.deriv.paramXYZ[var][1];
+                colourOverParam[2] = f.deriv.paramXYZ[var][2];
+
+                // Dot Product
+                dot = errorOverColour[0]*colourOverParam[0] + 
+                      errorOverColour[1]*colourOverParam[1] + 
+                      errorOverColour[2]*colourOverParam[2];
+
+                // Weights One
+                for (w=0;w<360;w++){
+                    if (var==0)
+                        out.onetwo[w] = 0.0f;
+                    // Derivative Three: filter/weight = secondary feature input at weight index
+                    paramOverWeight = f.s[w % 36];
+                    out.onetwo[w] += learningRate*dot*paramOverWeight;
+                }
+                // Weights Two
+                for (w=0;w<100;w++){
+                    if (var==0)
+                        out.twothree[w] = 0.0f;
+                    // Derivative Three: filter/weight = second layer value at weight index
+                    paramOverWeight = f.l2[w % 10];
+                    out.twothree[w] += learningRate*dot*paramOverWeight;
+                }
+                // Weights Three
+                for (w=0;w<70;w++){
+                    if (var==0)
+                        out.threefour[w] = 0.0f;
+                    // Derivative Three: filter/weight = third layer value at weight index
+                    paramOverWeight = f.l3[w % 10];
+                    out.threefour[w] += learningRate*dot*paramOverWeight;
+                }
+            }
+
+        return out;
+}
+#undef SKEPU_USING_BACKEND_CUDA
+
+#define SKEPU_USING_BACKEND_OMP 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block) block
+#define VARIANT_CUDA(block)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE SkePUBPOut OMP(SkePUBPIn f, int samples, float learningRate)
+{
+
+            float paramOverWeight, dot;
+            float errorOverColour[3];
+            float colourOverParam[3];
+
+            SkePUBPOut out;
+
+            // Derivative One: samples * (cFiltered - cTarget)/(cTarget*cTarget)
+            errorOverColour[0] = samples * (f.denoisedCol[0] - f.targetCol[0]) / (f.targetCol[0]*f.targetCol[0]+0.0001f);
+            errorOverColour[1] = samples * (f.denoisedCol[1] - f.targetCol[1]) / (f.targetCol[1]*f.targetCol[1]+0.0001f);
+            errorOverColour[2] = samples * (f.denoisedCol[2] - f.targetCol[2]) / (f.targetCol[2]*f.targetCol[2]+0.0001f);
+
+            // Filter Paramaters (index, col, K)
+            int w;
+            for (int var=0;var<7;var++) {
+
+                // Derivative Two: cross-bilateral filter derivative
+                colourOverParam[0] = f.deriv.paramXYZ[var][0];
+                colourOverParam[1] = f.deriv.paramXYZ[var][1];
+                colourOverParam[2] = f.deriv.paramXYZ[var][2];
+
+                // Dot Product
+                dot = errorOverColour[0]*colourOverParam[0] + 
+                      errorOverColour[1]*colourOverParam[1] + 
+                      errorOverColour[2]*colourOverParam[2];
+
+                // Weights One
+                for (w=0;w<360;w++){
+                    if (var==0)
+                        out.onetwo[w] = 0.0f;
+                    // Derivative Three: filter/weight = secondary feature input at weight index
+                    paramOverWeight = f.s[w % 36];
+                    out.onetwo[w] += learningRate*dot*paramOverWeight;
+                }
+                // Weights Two
+                for (w=0;w<100;w++){
+                    if (var==0)
+                        out.twothree[w] = 0.0f;
+                    // Derivative Three: filter/weight = second layer value at weight index
+                    paramOverWeight = f.l2[w % 10];
+                    out.twothree[w] += learningRate*dot*paramOverWeight;
+                }
+                // Weights Three
+                for (w=0;w<70;w++){
+                    if (var==0)
+                        out.threefour[w] = 0.0f;
+                    // Derivative Three: filter/weight = third layer value at weight index
+                    paramOverWeight = f.l3[w % 10];
+                    out.threefour[w] += learningRate*dot*paramOverWeight;
+                }
+            }
+
+        return out;
+}
+#undef SKEPU_USING_BACKEND_OMP
+
+#define SKEPU_USING_BACKEND_CPU 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block) block
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE SkePUBPOut CPU(SkePUBPIn f, int samples, float learningRate)
+{
+
+            float paramOverWeight, dot;
+            float errorOverColour[3];
+            float colourOverParam[3];
+
+            SkePUBPOut out;
+
+            // Derivative One: samples * (cFiltered - cTarget)/(cTarget*cTarget)
+            errorOverColour[0] = samples * (f.denoisedCol[0] - f.targetCol[0]) / (f.targetCol[0]*f.targetCol[0]+0.0001f);
+            errorOverColour[1] = samples * (f.denoisedCol[1] - f.targetCol[1]) / (f.targetCol[1]*f.targetCol[1]+0.0001f);
+            errorOverColour[2] = samples * (f.denoisedCol[2] - f.targetCol[2]) / (f.targetCol[2]*f.targetCol[2]+0.0001f);
+
+            // Filter Paramaters (index, col, K)
+            int w;
+            for (int var=0;var<7;var++) {
+
+                // Derivative Two: cross-bilateral filter derivative
+                colourOverParam[0] = f.deriv.paramXYZ[var][0];
+                colourOverParam[1] = f.deriv.paramXYZ[var][1];
+                colourOverParam[2] = f.deriv.paramXYZ[var][2];
+
+                // Dot Product
+                dot = errorOverColour[0]*colourOverParam[0] + 
+                      errorOverColour[1]*colourOverParam[1] + 
+                      errorOverColour[2]*colourOverParam[2];
+
+                // Weights One
+                for (w=0;w<360;w++){
+                    if (var==0)
+                        out.onetwo[w] = 0.0f;
+                    // Derivative Three: filter/weight = secondary feature input at weight index
+                    paramOverWeight = f.s[w % 36];
+                    out.onetwo[w] += learningRate*dot*paramOverWeight;
+                }
+                // Weights Two
+                for (w=0;w<100;w++){
+                    if (var==0)
+                        out.twothree[w] = 0.0f;
+                    // Derivative Three: filter/weight = second layer value at weight index
+                    paramOverWeight = f.l2[w % 10];
+                    out.twothree[w] += learningRate*dot*paramOverWeight;
+                }
+                // Weights Three
+                for (w=0;w<70;w++){
+                    if (var==0)
+                        out.threefour[w] = 0.0f;
+                    // Derivative Three: filter/weight = third layer value at weight index
+                    paramOverWeight = f.l3[w % 10];
+                    out.threefour[w] += learningRate*dot*paramOverWeight;
+                }
+            }
+
+        return out;
+}
+#undef SKEPU_USING_BACKEND_CPU
+};
+
+#include "skepu_skel_0_SkePUDenoiserNN_MapKernel_SkePUBPFunc.cu"
+
+struct skepu_userfunction_skepu_skel_1convol_SkePUFDFunc
 {
 constexpr static size_t totalArity = 2;
 constexpr static size_t outArity = 1;
@@ -2630,223 +2847,6 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE FilterDerivOut CPU(skepu::Region2D<Fi
 };
 
 #include "SkePUDenoiserNN_Overlap2DKernel_SkePUFDFunc.cu"
-
-struct skepu_userfunction_skepu_skel_1map_SkePUBPFunc
-{
-constexpr static size_t totalArity = 3;
-constexpr static size_t outArity = 1;
-constexpr static bool indexed = 0;
-constexpr static bool usesPRNG = 0;
-constexpr static size_t randomCount = SKEPU_NO_RANDOM;
-using IndexType = void;
-using ElwiseArgs = std::tuple<SkePUBPIn>;
-using ContainerArgs = std::tuple<>;
-using UniformArgs = std::tuple<int, float>;
-typedef std::tuple<> ProxyTags;
-constexpr static skepu::AccessMode anyAccessMode[] = {
-};
-
-using Ret = SkePUBPOut;
-
-constexpr static bool prefersMatrix = 0;
-
-#define SKEPU_USING_BACKEND_CUDA 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block)
-#define VARIANT_OPENMP(block)
-#define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ SkePUBPOut CU(SkePUBPIn f, int samples, float learningRate)
-{
-
-            float paramOverWeight, dot;
-            float errorOverColour[3];
-            float colourOverParam[3];
-
-            SkePUBPOut out;
-
-            // Derivative One: samples * (cFiltered - cTarget)/(cTarget*cTarget)
-            errorOverColour[0] = samples * (f.denoisedCol[0] - f.targetCol[0]) / (f.targetCol[0]*f.targetCol[0]+0.0001f);
-            errorOverColour[1] = samples * (f.denoisedCol[1] - f.targetCol[1]) / (f.targetCol[1]*f.targetCol[1]+0.0001f);
-            errorOverColour[2] = samples * (f.denoisedCol[2] - f.targetCol[2]) / (f.targetCol[2]*f.targetCol[2]+0.0001f);
-
-            // Filter Paramaters (index, col, K)
-            int w;
-            for (int var=0;var<7;var++) {
-
-                // Derivative Two: cross-bilateral filter derivative
-                colourOverParam[0] = f.deriv.paramXYZ[var][0];
-                colourOverParam[1] = f.deriv.paramXYZ[var][1];
-                colourOverParam[2] = f.deriv.paramXYZ[var][2];
-
-                // Dot Product
-                dot = errorOverColour[0]*colourOverParam[0] + 
-                      errorOverColour[1]*colourOverParam[1] + 
-                      errorOverColour[2]*colourOverParam[2];
-
-                // Weights One
-                for (w=0;w<360;w++){
-                    if (var==0)
-                        out.onetwo[w] = 0.0f;
-                    // Derivative Three: filter/weight = secondary feature input at weight index
-                    paramOverWeight = f.s[w % 36];
-                    out.onetwo[w] += learningRate*dot*paramOverWeight;
-                }
-                // Weights Two
-                for (w=0;w<100;w++){
-                    if (var==0)
-                        out.twothree[w] = 0.0f;
-                    // Derivative Three: filter/weight = second layer value at weight index
-                    paramOverWeight = f.l2[w % 10];
-                    out.twothree[w] += learningRate*dot*paramOverWeight;
-                }
-                // Weights Three
-                for (w=0;w<70;w++){
-                    if (var==0)
-                        out.threefour[w] = 0.0f;
-                    // Derivative Three: filter/weight = third layer value at weight index
-                    paramOverWeight = f.l3[w % 10];
-                    out.threefour[w] += learningRate*dot*paramOverWeight;
-                }
-            }
-
-        return out;
-}
-#undef SKEPU_USING_BACKEND_CUDA
-
-#define SKEPU_USING_BACKEND_OMP 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block)
-#define VARIANT_OPENMP(block) block
-#define VARIANT_CUDA(block)
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE SkePUBPOut OMP(SkePUBPIn f, int samples, float learningRate)
-{
-
-            float paramOverWeight, dot;
-            float errorOverColour[3];
-            float colourOverParam[3];
-
-            SkePUBPOut out;
-
-            // Derivative One: samples * (cFiltered - cTarget)/(cTarget*cTarget)
-            errorOverColour[0] = samples * (f.denoisedCol[0] - f.targetCol[0]) / (f.targetCol[0]*f.targetCol[0]+0.0001f);
-            errorOverColour[1] = samples * (f.denoisedCol[1] - f.targetCol[1]) / (f.targetCol[1]*f.targetCol[1]+0.0001f);
-            errorOverColour[2] = samples * (f.denoisedCol[2] - f.targetCol[2]) / (f.targetCol[2]*f.targetCol[2]+0.0001f);
-
-            // Filter Paramaters (index, col, K)
-            int w;
-            for (int var=0;var<7;var++) {
-
-                // Derivative Two: cross-bilateral filter derivative
-                colourOverParam[0] = f.deriv.paramXYZ[var][0];
-                colourOverParam[1] = f.deriv.paramXYZ[var][1];
-                colourOverParam[2] = f.deriv.paramXYZ[var][2];
-
-                // Dot Product
-                dot = errorOverColour[0]*colourOverParam[0] + 
-                      errorOverColour[1]*colourOverParam[1] + 
-                      errorOverColour[2]*colourOverParam[2];
-
-                // Weights One
-                for (w=0;w<360;w++){
-                    if (var==0)
-                        out.onetwo[w] = 0.0f;
-                    // Derivative Three: filter/weight = secondary feature input at weight index
-                    paramOverWeight = f.s[w % 36];
-                    out.onetwo[w] += learningRate*dot*paramOverWeight;
-                }
-                // Weights Two
-                for (w=0;w<100;w++){
-                    if (var==0)
-                        out.twothree[w] = 0.0f;
-                    // Derivative Three: filter/weight = second layer value at weight index
-                    paramOverWeight = f.l2[w % 10];
-                    out.twothree[w] += learningRate*dot*paramOverWeight;
-                }
-                // Weights Three
-                for (w=0;w<70;w++){
-                    if (var==0)
-                        out.threefour[w] = 0.0f;
-                    // Derivative Three: filter/weight = third layer value at weight index
-                    paramOverWeight = f.l3[w % 10];
-                    out.threefour[w] += learningRate*dot*paramOverWeight;
-                }
-            }
-
-        return out;
-}
-#undef SKEPU_USING_BACKEND_OMP
-
-#define SKEPU_USING_BACKEND_CPU 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block) block
-#define VARIANT_OPENMP(block)
-#define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE SkePUBPOut CPU(SkePUBPIn f, int samples, float learningRate)
-{
-
-            float paramOverWeight, dot;
-            float errorOverColour[3];
-            float colourOverParam[3];
-
-            SkePUBPOut out;
-
-            // Derivative One: samples * (cFiltered - cTarget)/(cTarget*cTarget)
-            errorOverColour[0] = samples * (f.denoisedCol[0] - f.targetCol[0]) / (f.targetCol[0]*f.targetCol[0]+0.0001f);
-            errorOverColour[1] = samples * (f.denoisedCol[1] - f.targetCol[1]) / (f.targetCol[1]*f.targetCol[1]+0.0001f);
-            errorOverColour[2] = samples * (f.denoisedCol[2] - f.targetCol[2]) / (f.targetCol[2]*f.targetCol[2]+0.0001f);
-
-            // Filter Paramaters (index, col, K)
-            int w;
-            for (int var=0;var<7;var++) {
-
-                // Derivative Two: cross-bilateral filter derivative
-                colourOverParam[0] = f.deriv.paramXYZ[var][0];
-                colourOverParam[1] = f.deriv.paramXYZ[var][1];
-                colourOverParam[2] = f.deriv.paramXYZ[var][2];
-
-                // Dot Product
-                dot = errorOverColour[0]*colourOverParam[0] + 
-                      errorOverColour[1]*colourOverParam[1] + 
-                      errorOverColour[2]*colourOverParam[2];
-
-                // Weights One
-                for (w=0;w<360;w++){
-                    if (var==0)
-                        out.onetwo[w] = 0.0f;
-                    // Derivative Three: filter/weight = secondary feature input at weight index
-                    paramOverWeight = f.s[w % 36];
-                    out.onetwo[w] += learningRate*dot*paramOverWeight;
-                }
-                // Weights Two
-                for (w=0;w<100;w++){
-                    if (var==0)
-                        out.twothree[w] = 0.0f;
-                    // Derivative Three: filter/weight = second layer value at weight index
-                    paramOverWeight = f.l2[w % 10];
-                    out.twothree[w] += learningRate*dot*paramOverWeight;
-                }
-                // Weights Three
-                for (w=0;w<70;w++){
-                    if (var==0)
-                        out.threefour[w] = 0.0f;
-                    // Derivative Three: filter/weight = third layer value at weight index
-                    paramOverWeight = f.l3[w % 10];
-                    out.threefour[w] += learningRate*dot*paramOverWeight;
-                }
-            }
-
-        return out;
-}
-#undef SKEPU_USING_BACKEND_CPU
-};
-
-#include "skepu_skel_1_SkePUDenoiserNN_MapKernel_SkePUBPFunc.cu"
 void DenoiserNN::SkePUBackProp() {
 
     // Calc Filter Derivs with Map Overlap
@@ -2874,7 +2874,7 @@ void DenoiserNN::SkePUBackProp() {
 
     auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(denoisingSkePUBackend)};
 	spec.activateBackend();
-    skepu::backend::MapOverlap2D<skepu_userfunction_skepu_skel_0convol_SkePUFDFunc, decltype(&SkePUDenoiserNN_Overlap2DKernel_SkePUFDFunc_conv_cuda_2D_kernel), void> convol(SkePUDenoiserNN_Overlap2DKernel_SkePUFDFunc_conv_cuda_2D_kernel);
+    skepu::backend::MapOverlap2D<skepu_userfunction_skepu_skel_1convol_SkePUFDFunc, decltype(&SkePUDenoiserNN_Overlap2DKernel_SkePUFDFunc_conv_cuda_2D_kernel), void> convol(SkePUDenoiserNN_Overlap2DKernel_SkePUFDFunc_conv_cuda_2D_kernel);
 	convol.setBackend(spec);
     convol.setOverlap(denoisingN);
     convol.setEdgeMode(skepu::Edge::Duplicate);
@@ -2904,7 +2904,7 @@ void DenoiserNN::SkePUBackProp() {
 
     spec = skepu::BackendSpec{skepu::Backend::typeFromString(denoisingSkePUBackend)};
 	spec.activateBackend();
-    skepu::backend::Map<1, skepu_userfunction_skepu_skel_1map_SkePUBPFunc, decltype(&skepu_skel_1_SkePUDenoiserNN_MapKernel_SkePUBPFunc), void> map(skepu_skel_1_SkePUDenoiserNN_MapKernel_SkePUBPFunc);
+    skepu::backend::Map<1, skepu_userfunction_skepu_skel_0map_SkePUBPFunc, decltype(&skepu_skel_0_SkePUDenoiserNN_MapKernel_SkePUBPFunc), void> map(skepu_skel_0_SkePUDenoiserNN_MapKernel_SkePUBPFunc);
 	map.setBackend(spec);
 
     map(bpOut, bpIn, sampleCount, learningRate);

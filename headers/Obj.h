@@ -61,41 +61,6 @@ class Obj {
 public:
 
     Obj() : inImportantList(false) {};
-
-	// Rotation Matrix
-/* 	
-	void Rotate(vec3 t[3]) {
-		vec3 mat[3];
-		mat[0] = vec3(t[0].dot(vec3(rot[0].x, rot[1].x, rot[2].x)), t[0].dot(vec3(rot[0].y, rot[1].y, rot[2].y)), t[0].dot(vec3(rot[0].z, rot[1].z, rot[2].z)));
-		mat[1] = vec3(t[1].dot(vec3(rot[0].x, rot[1].x, rot[2].x)), t[1].dot(vec3(rot[0].y, rot[1].y, rot[2].y)), t[1].dot(vec3(rot[0].z, rot[1].z, rot[2].z)));
-		mat[2] = vec3(t[2].dot(vec3(rot[0].x, rot[1].x, rot[2].x)), t[2].dot(vec3(rot[0].y, rot[1].y, rot[2].y)), t[2].dot(vec3(rot[0].z, rot[1].z, rot[2].z)));
-
-		rot[0] = mat[0];
-		rot[1] = mat[1];
-		rot[2] = mat[2];
-	}
-	void rotateX(float angle) {
-		vec3 rotation[3];
-		rotation[0] = vec3(1,0,0);
-		rotation[1] = vec3(0,cos(angle),-sin(angle));
-		rotation[2] = vec3(0,sin(angle), cos(angle));
-		Rotate(rotation);
-	}
-	void rotateY(float angle) {
-		vec3 rotation[3];
-		rotation[0] = vec3(cos(angle),0, sin(angle));
-		rotation[1] = vec3(0,1,0);
-		rotation[2] = vec3(-sin(angle),0,cos(angle));
-		Rotate(rotation);
-	}
-	void rotateZ(float angle) {
-		vec3 rotation[3];
-		rotation[0] = vec3(cos(angle),-sin(angle),0);
-		rotation[1] = vec3(sin(angle), cos(angle),0);
-		rotation[2] = vec3(0,0,1);
-		Rotate(rotation);
-	}
- */
     
 	// ImGui Edit Screen
     virtual bool ImGuiEdit() = 0;

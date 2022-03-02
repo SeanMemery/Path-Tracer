@@ -10,10 +10,12 @@
 #include "Denoiser.h"
 #include "Camera.h"
 #include "Scene.h"
+
 #include <skepu>
+#include <skepu-lib/util.hpp>
 #include <algorithm>
 
-// CUDA Heaeder File
+// CUDA Header File
 #include "CUDAHeader.h"
 
 using namespace std::chrono;
@@ -79,7 +81,7 @@ public:
                 OMPAutoExp();
                 break;
             case 2:
-                CUDAAutoExp();
+                CUDARender::CUDAAutoExp();
                 break;
             case 3:
                 OpenGLAutoExp();

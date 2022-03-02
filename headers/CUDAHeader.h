@@ -28,5 +28,6 @@ namespace CUDARender {
     void render();
     void PostProcess();
     void UpdateConstants();
+    void CUDAAutoExp();
 
 };

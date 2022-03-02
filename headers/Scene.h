@@ -92,6 +92,8 @@ public:
             sphereNewCopy->r       = sphereToCopy->r;
             sphereNewCopy->inImportantList = sphereToCopy->inImportantList;
             objList.push_back(sphereNewCopy);
+            if (sphereNewCopy->inImportantList)
+                AddToImpList(objList.size()-1);
         }
         // OBB
         else if (type==1) {
@@ -105,6 +107,8 @@ public:
             obbNewCopy->UpdateRot();
             obbNewCopy->inImportantList = obbToCopy->inImportantList;
             objList.push_back(obbNewCopy);
+            if (obbNewCopy->inImportantList)
+                AddToImpList(objList.size()-1);
         }
         return;
     }
@@ -170,7 +174,7 @@ public:
                 matList.at(matList.size()-1)->blur = blur;
                 matList.at(matList.size()-1)->RI   = RI;
             }
-            //check for details
+            // Check for details
             else if(line.substr(0,2)=="d "){
                 const char* chh=line.c_str();
                 if (currentType == 0) {
@@ -204,6 +208,15 @@ public:
                     printf("Error parsing .scene file, unkown shape type !");
                     return false;
                 }
+            }
+            // Check for Post Processing Values
+            else if (line.substr(0,3)=="pp ") {
+                const char* chh=line.c_str();
+                float _exposure, _g;
+                int type;
+                sscanf (chh, "pp %f %f ", &_exposure, &_g);
+                exposure = _exposure;
+                g = _g;
             }
         }  
         in.close();
@@ -247,6 +260,8 @@ public:
                              cam.up.x      << "/" << cam.up.y      << "/" << cam.up.z      << " " <<
                              cam.right.x   << "/" << cam.right.y   << "/" << cam.right.z   << " " <<
                              cam.vfov      << " " << cam.hfov      << "\n";
+
+        outString << "pp " << exposure << " " << g << "\n"; 
 
         std::ofstream myfile;
         std::stringstream fileName;

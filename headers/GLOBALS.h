@@ -20,7 +20,7 @@ extern float randSamp;
 extern double denoiseTime, epochTime, exposureTime;
 
 // Total times
-extern double renderTime, imguiTime, postProcessTime, totalTime, screenUpdateTime;
+extern double renderTime, imguiTime, postProcessTime, totalTime, screenUpdateTime, totalRenderTime;
 
 extern int rootThreadsPerBlock;
 

@@ -6,7 +6,7 @@ unsigned int mainTexture;
 float exposure, g, randSamp;
 int displayMetric, rootThreadsPerBlock;
 std::string skepuBackend;
-double renderTime, denoiseTime, epochTime, totalTime, exposureTime, imguiTime, postProcessTime, screenUpdateTime;
+double renderTime, denoiseTime, epochTime, totalTime, exposureTime, imguiTime, postProcessTime, screenUpdateTime, totalRenderTime;
 
 Scene scene;
 ImGuiWindowFlags window_flags;
@@ -54,7 +54,7 @@ PT::PT() :
     yRes = 1080 * resPerc;
     xScreen = 1920 * screenPerc;
     yScreen = 1080 * screenPerc;
-    currentRenderer = 6;
+    currentRenderer = 2;
     denoisingBackend = 1;
     rendering = true;
     renderer = Renderers();
@@ -68,8 +68,8 @@ PT::PT() :
     cam.hfov = 120;
     cam.vfov = 90;
 
-    exposure = 1.0f;
-    g = 1.3f;
+    exposure = 2.0f;
+    g = 2.1f;
     objEdit = 0;
     displayMetric = 0;
     denoisingN = 1;
@@ -113,6 +113,8 @@ void PT::RenderLoop() {
         screenUpdateTime = std::chrono::duration_cast<milli_second_>(clock_::now() - screenUpdateTimer).count();
 
         totalTime = std::chrono::duration_cast<milli_second_>(clock_::now() - frameTimer).count();
+        if (rendering)
+            totalRenderTime += totalTime;
     }
 }
 
@@ -143,7 +145,7 @@ void PT::RefreshScreen(){
     }
 
     sampleCount = 0;
-    totalTime = 0;
+    totalRenderTime = 0;
 
     // Reset Screens
     GLOBALS::DeleteScreens(true);
@@ -222,21 +224,22 @@ void PT::ImGui() {
 
         ImGui::Text("-----------------Time-----------------");
 
-        ImGui::Text("ImGui:        %.3f ms (%.3f %)", imguiTime, 100.0f*imguiTime/totalTime);
-        ImGui::Text("Render:       %.3f ms (%.3f %)", renderTime, 100.0f*renderTime/totalTime);
-        ImGui::Text("Post Process: %.3f ms (%.3f %)", postProcessTime, 100.0f*postProcessTime/totalTime);
+        ImGui::Text("ImGui:        %.3f ms (%.3f %)", imguiTime,        100.0f*imguiTime/totalTime);
+        ImGui::Text("Render:       %.3f ms (%.3f %)", renderTime,       100.0f*renderTime/totalTime);
+        ImGui::Text("Post Process: %.3f ms (%.3f %)", postProcessTime,  100.0f*postProcessTime/totalTime);
         ImGui::Text("Screen:       %.3f ms (%.3f %)", screenUpdateTime, 100.0f*screenUpdateTime/totalTime);
         ImGui::Text("Total:        %.3f ms", totalTime);
 
         ImGui::Text("-----------------Time-----------------");
 
-        ImGui::Text("Rays Per Frame %d", rayCount);
         float numMillRays = rayCount / 1000000.0f;
+        ImGui::Text("Rays Per Frame %d",          rayCount);
         ImGui::Text("Time Per Million Rays %.3f", renderTime/numMillRays);
-        ImGui::Text("Number of Samples %d", sampleCount);
+        ImGui::Text("Number of Samples %d",       sampleCount);
+        ImGui::Text("Rendering Time %.3f s",      totalRenderTime/1000.0f);
 
-        refresh |= ImGui::SliderFloat("Resolution Strength ( 1920x1080 )", &resPerc, 0.01f, 2.0f);
-        refresh |= ImGui::SliderFloat("Screen Size ( 1920x1080 )", &screenPerc, 0.01f, 2.0f);
+        refresh |= ImGui::SliderFloat("Resolution Strength ( 1920x1080 )", &resPerc,   0.01f, 2.0f);
+        refresh |= ImGui::SliderFloat("Screen Size ( 1920x1080 )",         &screenPerc, 0.01f, 2.0f);
         ImGui::Text("Resolution: (%d x %d)", xRes, yRes);
         ImGui::Text("Screen Size: (%d x %d)", xScreen, yScreen);
 
@@ -346,6 +349,11 @@ void PT::ImGui() {
             ImGui::Text("-------------------Obj-------------------");
             ImGui::Text("");
             ImGui::Text("-------------------Mat-------------------");
+            if (ImGui::Button("New Mat")) {
+                scene.AddMat(0);
+                scene.objList[objEdit]->mat_ind = scene.matList.size()-1;
+                refresh = true;
+            }
             refresh |= scene.matList[scene.objList[objEdit]->mat_ind]->ImGuiEdit();
             ImGui::Text("-------------------Mat-------------------");
         }
