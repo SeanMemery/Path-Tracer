@@ -1,12 +1,12 @@
 #include "PT.h"
 
-int xRes, yRes, xScreen, yScreen, maxDepth, currentRenderer, rayCount, sampleCount;
-bool denoising, moving, quit, rendering, refresh;
+int xRes, yRes, xScreen, yScreen, maxDepth, currentRenderer, rayCount, sampleCount, trainingCount;
+bool denoising, moving, quit, rendering, refresh, trainingLimitBool;
 unsigned int mainTexture; 
-float exposure, g, randSamp;
+float exposure, g, randSamp, avgTMR, lRateInt, lRateIntMax;
 int displayMetric, rootThreadsPerBlock;
 std::string skepuBackend;
-double renderTime, denoiseTime, epochTime, totalTime, exposureTime, imguiTime, postProcessTime, screenUpdateTime, totalRenderTime;
+double renderTime, denoiseTime, epochTime, totalTime, exposureTime, imguiTime, postProcessTime, screenUpdateTime, totalRenderTime, trainingTime;
 
 Scene scene;
 ImGuiWindowFlags window_flags;
@@ -55,7 +55,7 @@ PT::PT() :
     xScreen = 1920 * screenPerc;
     yScreen = 1080 * screenPerc;
     currentRenderer = 2;
-    denoisingBackend = 1;
+    denoisingBackend = 2;
     rendering = true;
     renderer = Renderers();
 
@@ -74,9 +74,12 @@ PT::PT() :
     displayMetric = 0;
     denoisingN = 1;
     maxDepth = 4;
-    lRateInt = 6;
+    lRateInt = 6.0f;
+    lRateIntMax = lRateInt;
     randSamp = 0.005f;
-    rootThreadsPerBlock = 16;
+    rootThreadsPerBlock = 8;
+    trainingCount = 0;
+    avgTMR = 0;
 
     scene = Scene();
     scene.InitScene();
@@ -85,9 +88,18 @@ PT::PT() :
     denoiserNN = DenoiserNN();
 
     GLOBALS::InitScreens(true);
+    CUDADenoiser::InitBuffers();
+    CUDADenoiserNN::InitBuffers();
 
     renderer.UpdateConstants();
     renderer.UpdateCam();
+}
+
+void PT::UpdateScreen() {
+    auto screenUpdateTimer = clock_::now();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, xRes, yRes, 0, GL_RGB, GL_FLOAT, &postScreen[0]);
+    SDL_GL_SwapWindow(sdlWindow);
+    screenUpdateTime = std::chrono::duration_cast<milli_second_>(clock_::now() - screenUpdateTimer).count();
 }
 
 void PT::RenderLoop() {
@@ -102,15 +114,15 @@ void PT::RenderLoop() {
             if (refresh) {RefreshScreen();}
             renderer.Render();
         }
-        else if (training)
+        else if (training) {
             denoiserNN.TrainNN();
+            if (!training)
+                denoiserNN.EndTraining();   
+        }
+
 
         PostProcess();
-
-        auto screenUpdateTimer = clock_::now();
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, xRes, yRes, 0, GL_RGB, GL_FLOAT, &postScreen[0]);
-        SDL_GL_SwapWindow(sdlWindow);
-        screenUpdateTime = std::chrono::duration_cast<milli_second_>(clock_::now() - screenUpdateTimer).count();
+        UpdateScreen();
 
         totalTime = std::chrono::duration_cast<milli_second_>(clock_::now() - frameTimer).count();
         if (rendering)
@@ -146,10 +158,15 @@ void PT::RefreshScreen(){
 
     sampleCount = 0;
     totalRenderTime = 0;
+    avgTMR = 0;
 
     // Reset Screens
     GLOBALS::DeleteScreens(true);
+    CUDADenoiser::FreeBuffers();
+    CUDADenoiserNN::FreeBuffers();
     GLOBALS::InitScreens(true);
+    CUDADenoiser::InitBuffers();
+    CUDADenoiserNN::InitBuffers();
 }
 
 void PT::ProcessInput() {
@@ -159,10 +176,6 @@ void PT::ProcessInput() {
 		switch (evnt.type) {
 		default:
 			ImGui_ImplSDL2_ProcessEvent(&evnt);
-			// if (!ImGui::GetIO().WantCaptureMouse && !ImGui::GetIO().WantCaptureKeyboard) {
-			// 	if (evnt.type == SDL_MOUSEBUTTONDOWN)
-			// 		continue;
-			// }
 			break;
 		}
 	}
@@ -224,17 +237,22 @@ void PT::ImGui() {
 
         ImGui::Text("-----------------Time-----------------");
 
-        ImGui::Text("ImGui:        %.3f ms (%.3f %)", imguiTime,        100.0f*imguiTime/totalTime);
-        ImGui::Text("Render:       %.3f ms (%.3f %)", renderTime,       100.0f*renderTime/totalTime);
-        ImGui::Text("Post Process: %.3f ms (%.3f %)", postProcessTime,  100.0f*postProcessTime/totalTime);
+        ImGui::Text("ImGui:        %.3f ms (%.3f %)", imguiTime,        100.0f*imguiTime       /totalTime);
+        ImGui::Text("Render:       %.3f ms (%.3f %)", renderTime,       100.0f*renderTime      /totalTime);
+        ImGui::Text("Post Process: %.3f ms (%.3f %)", postProcessTime,  100.0f*postProcessTime /totalTime);
         ImGui::Text("Screen:       %.3f ms (%.3f %)", screenUpdateTime, 100.0f*screenUpdateTime/totalTime);
         ImGui::Text("Total:        %.3f ms", totalTime);
 
         ImGui::Text("-----------------Time-----------------");
 
         float numMillRays = rayCount / 1000000.0f;
+        numMillRays = numMillRays == 0 ? 1 : numMillRays;
         ImGui::Text("Rays Per Frame %d",          rayCount);
-        ImGui::Text("Time Per Million Rays %.3f", renderTime/numMillRays);
+        float TMR = renderTime/numMillRays;
+        ImGui::Text("Time Per Million Rays %.3f", TMR);
+        if (rendering)
+            avgTMR += TMR;
+        ImGui::Text("Avg Time Per Million Rays %.3f", avgTMR/(float)sampleCount);  
         ImGui::Text("Number of Samples %d",       sampleCount);
         ImGui::Text("Rendering Time %.3f s",      totalRenderTime/1000.0f);
 
@@ -417,17 +435,22 @@ void PT::ImGui() {
                     if (ImGui::Button("Denoise Image"))
                         denoiser.denoise();                             
 
-                if (ImGui::InputInt("Learning Rate (Inverse)", &lRateInt, 0, 16))
-                    denoiserNN.learningRate = 1.0f / pow(10, lRateInt);
+                ImGui::InputFloat("Learning Rate (Inverse)", &lRateInt, 1, 16);
                 ImGui::InputInt("Sample for Training", &denoiserNN.samplesWhenTraining);
 
                 if (!training) {
+                    ImGui::InputInt("Training Limit", &trainingCount, 0, 10000);
+                    trainingLimitBool = trainingCount > 0;
+                    if (trainingLimitBool)
+                        ImGui::InputFloat("Target Learning Rate", &lRateIntMax, 1, 16);
                     if (ImGui::Button("Start Training")) 
                         denoiserNN.InitTraining();
                 } else {
                     ImGui::Text("Epoch: %d", trainingEpoch);
-                    ImGui::Text("Epoch Time: %.3f", epochTime);
+                    ImGui::Text("Epoch Time: %.3f ms", epochTime);
+                    ImGui::Text("Training Time: %.3f s", trainingTime/1000.0f);
                     ImGui::Text("RelMSE: %.3f", denoiserNN.relMSE);
+                    ImGui::Text("Learning Rate %.12f", denoiserNN.learningRate);
                     if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Tab)) || ImGui::Button("Stop Training"))
                         denoiserNN.EndTraining();   
                 }

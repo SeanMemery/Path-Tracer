@@ -121,7 +121,11 @@ public:
                 SkePUForwardProp();
                 break;
             case 6:
+                if (skipCudaDenoise)
+                    denoisingSkePUBackend = "openmp";
                 SkePUForwardProp();
+                if (skipCudaDenoise)
+                    denoisingSkePUBackend = "cuda";                
                 break;
         }
     }
@@ -146,7 +150,11 @@ public:
                 SkePUBackProp();
                 break;
             case 6:
+                if (skipCudaDenoise)
+                    denoisingSkePUBackend = "openmp";
                 SkePUBackProp();
+                if (skipCudaDenoise)
+                    denoisingSkePUBackend = "cuda";                
                 break;
         }
     }

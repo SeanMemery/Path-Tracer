@@ -1,52 +1,55 @@
 #include "Renderers.h"
 
+    static float dot(float* x, float* y) {
+        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+    }
+    static void norm(float* vec) {
+        auto d = sqrt(dot(vec,vec)); 
+        vec[0]/=d; 
+        vec[1]/=d; 
+        vec[2]/=d; 
+    }
+    static float randBetween(RandomSeeds& seeds, float min, float max) {
+        uint64_t s0 = seeds.s1;
+        uint64_t s1 = seeds.s2;
+        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
+        double one_two = ((uint64_t)1 << 63) * (double)2.0;
+        float rand = xorshiro / one_two;
+        s1 ^= s0;
+        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
+        seeds.s2 = (s1 << 28) | (s1 >> 36);
+        rand *= max - min;
+        rand += min;
+        return rand;
+    }
+    static void QMult(float* q1, float* q2 ) {
+        auto A1 = (q1[3] + q1[1]) * (q2[1] + q2[2]);
+        auto A3 = (q1[0] - q1[2]) * (q2[0] + q2[3]);
+        auto A4 = (q1[0] + q1[2]) * (q2[0] - q2[3]);
+        auto A2 = A1 + A3 + A4;
+        auto A5 = (q1[3] - q1[1]) * (q2[1] - q2[2]);
+        A5 = (A5 + A2) / 2.0f;
+
+        auto Q1 = A5 - A1 + (q1[3] - q1[2]) * (q2[2] - q2[3]);
+        auto Q2 = A5 - A2 + (q1[1] + q1[0]) * (q2[1] + q2[0]);
+        auto Q3 = A5 - A3 + (q1[0] - q1[1]) * (q2[2] + q2[3]);
+        auto Q4 = A5 - A4 + (q1[3] + q1[2]) * (q2[0] - q2[1]);
+
+        q1[0] = Q1; q1[1] = Q2; q1[2] = Q3; q1[3] = Q4;
+    }
+    static void rotate(float* to_rotate, float* q) {
+        float p[4]  {0, to_rotate[0], to_rotate[1], to_rotate[2]};
+        float qR[4] {q[0],-q[1],-q[2],-q[3]};
+
+        QMult(p, q);
+        QMult(qR, p);
+        to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
+    };
+
     static ReturnStruct RenderFunc(skepu::Index2D ind, RandomSeeds seeds,  Constants  sConstants) {
         // Ray
         float camPos[3] = { sConstants.camPos[0],  sConstants.camPos[1],  sConstants.camPos[2]};
         float rayPos[3] = {camPos[0], camPos[1], camPos[2]};
-
-        // Lambda Functions
-            auto dot  = [=](float vec1[3], float vec2[3]) {return vec1[0]*vec2[0] + vec1[1]*vec2[1] + vec1[2]*vec2[2];};
-            auto norm = [&](float vec[3]) {auto d = sqrt(dot(vec,vec)); vec[0]/=d; vec[1]/=d; vec[2]/=d; };
-            auto randBetween = [](RandomSeeds& seeds, float min, float max) {
-                uint64_t s0 = seeds.s1;
-                uint64_t s1 = seeds.s2;
-                uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-                double one_two = ((uint64_t)1 << 63) * (double)2.0;
-                float rand = xorshiro / one_two;
-                s1 ^= s0;
-                seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
-                seeds.s2 = (s1 << 28) | (s1 >> 36);
-
-                rand *= max - min;
-                rand += min;
-                return rand;
-            };
-            auto QMult = [&](float q1[4], float q2[4] ) {
-                auto A1 = (q1[3] + q1[1]) * (q2[1] + q2[2]);
-                auto A3 = (q1[0] - q1[2]) * (q2[0] + q2[3]);
-                auto A4 = (q1[0] + q1[2]) * (q2[0] - q2[3]);
-                auto A2 = A1 + A3 + A4;
-                auto A5 = (q1[3] - q1[1]) * (q2[1] - q2[2]);
-                A5 = (A5 + A2) / 2.0f;
-
-                auto Q1 = A5 - A1 + (q1[3] - q1[2]) * (q2[2] - q2[3]);
-                auto Q2 = A5 - A2 + (q1[1] + q1[0]) * (q2[1] + q2[0]);
-                auto Q3 = A5 - A3 + (q1[0] - q1[1]) * (q2[2] + q2[3]);
-                auto Q4 = A5 - A4 + (q1[3] + q1[2]) * (q2[0] - q2[1]);
-
-                q1[0] = Q1; q1[1] = Q2; q1[2] = Q3; q1[3] = Q4;
-            };
-            auto rotate = [&](float to_rotate[3], float q[4]) {
-
-                float p[4]  {0, to_rotate[0], to_rotate[1], to_rotate[2]};
-                float qR[4] {q[0],-q[1],-q[2],-q[3]};
-
-                QMult(p, q);
-                QMult(qR, p);
-                to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
-            };
-        // Lambda Functions
 
         // Rand Samp
         float rSamps[2] = {0.0f, 0.0f};
@@ -351,10 +354,20 @@
 
                             float schlickRand = randBetween(seeds, 0, 1);
 
+                            float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = randBetween(seeds, 0, 1.0f);
+                                r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = randBetween(seeds, 0, 2.0f*M_PI);
+                                randSphereDir[0] = cos(r1)*cos(r2);
+                                randSphereDir[1] = cos(r1)*sin(r2);
+                                randSphereDir[2] = sin(r1);
+                            }    
+
                             if (!canRefract || schlick > schlickRand) {
-                                dir[0] = (dirIn[0] - 2.0f*cosi*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                dir[1] = (dirIn[1] - 2.0f*cosi*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                dir[2] = (dirIn[2] - 2.0f*cosi*refNorm[2])*(1.0f - blur) + blur*randDir[2];
+                                dir[0] = (dirIn[0] - 2.0f*cosi*refNorm[0]) + blur*randSphereDir[0];
+                                dir[1] = (dirIn[1] - 2.0f*cosi*refNorm[1]) + blur*randSphereDir[1];
+                                dir[2] = (dirIn[2] - 2.0f*cosi*refNorm[2]) + blur*randSphereDir[2];
                                 norm(dir);
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
                                 float cosine2 = dot(normals[pos], dir);
@@ -363,9 +376,9 @@
                             else {
 
                                 float refCalc = RI*cosi - (float)sqrt(1.0f-sinSq);
-                                dir[0] = (RI*dirIn[0] + refCalc*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                dir[1] = (RI*dirIn[1] + refCalc*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                dir[2] = (RI*dirIn[2] + refCalc*refNorm[2])*(1.0f - blur) + blur*randDir[2];
+                                dir[0] = (RI*dirIn[0] + refCalc*refNorm[0]) + blur*randSphereDir[0];
+                                dir[1] = (RI*dirIn[1] + refCalc*refNorm[1]) + blur*randSphereDir[1];
+                                dir[2] = (RI*dirIn[2] + refCalc*refNorm[2]) + blur*randSphereDir[2];
                                 norm(dir);
 
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
@@ -383,9 +396,20 @@
 
                             float prevDirNormalDot = dot(dirIn, normals[pos]);
 
-                            dir[0] = (dirIn[0] - 2.0f*prevDirNormalDot*normals[pos][0])*(1.0f - blur) + blur*randDir[0];
-                            dir[1] = (dirIn[1] - 2.0f*prevDirNormalDot*normals[pos][1])*(1.0f - blur) + blur*randDir[1];
-                            dir[2] = (dirIn[2] - 2.0f*prevDirNormalDot*normals[pos][2])*(1.0f - blur) + blur*randDir[2];
+                            float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = randBetween(seeds, 0, 1.0f);
+                                r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = randBetween(seeds, 0, 2.0f*M_PI);
+                                randSphereDir[0] = cos(r1)*cos(r2);
+                                randSphereDir[1] = cos(r1)*sin(r2);
+                                randSphereDir[2] = sin(r1);
+                            }    
+
+                            dir[0] = (dirIn[0] - 2.0f*prevDirNormalDot*normals[pos][0]) + blur*randSphereDir[0];
+                            dir[1] = (dirIn[1] - 2.0f*prevDirNormalDot*normals[pos][1]) + blur*randSphereDir[1];
+                            dir[2] = (dirIn[2] - 2.0f*prevDirNormalDot*normals[pos][2]) + blur*randSphereDir[2];
+                            norm(dir);
 
                             float cosine2 = dot(dir, normals[pos]);
 
@@ -612,18 +636,28 @@
                                                 float sinSq = RI*RI*(1.0f-cosi*cosi);
                                                 bool canRefract = 1.0f - sinSq > E;
 
+                                                float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                                                if (blur>0.0f) {
+                                                    float r1 = randBetween(seeds, 0, 1.0f);
+                                                    r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                                    float r2 = randBetween(seeds, 0, 2.0f*M_PI);
+                                                    randSphereDir[0] = cos(r1)*cos(r2);
+                                                    randSphereDir[1] = cos(r1)*sin(r2);
+                                                    randSphereDir[2] = sin(r1);
+                                                }    
+
                                                 if (!canRefract) {
-                                                    shadowDir[0] = (shadowDir[0] - 2.0f*cosi*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                                    shadowDir[1] = (shadowDir[1] - 2.0f*cosi*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                                    shadowDir[2] = (shadowDir[2] - 2.0f*cosi*refNorm[2])*(1.0f - blur) + blur*randDir[2];
+                                                    shadowDir[0] = (shadowDir[0] - 2.0f*cosi*refNorm[0]) + blur*randSphereDir[0];
+                                                    shadowDir[1] = (shadowDir[1] - 2.0f*cosi*refNorm[1]) + blur*randSphereDir[1];
+                                                    shadowDir[2] = (shadowDir[2] - 2.0f*cosi*refNorm[2]) + blur*randSphereDir[2];
                                                     norm(shadowDir);
                                                 }
                                                 else {
 
                                                     float refCalc = RI*cosi - (float)sqrt(1.0f-sinSq);
-                                                    shadowDir[0] = (RI*shadowDir[0] + refCalc*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                                    shadowDir[1] = (RI*shadowDir[1] + refCalc*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                                    shadowDir[2] = (RI*shadowDir[2] + refCalc*refNorm[2])*(1.0f - blur) + blur*randDir[2];
+                                                    shadowDir[0] = (RI*shadowDir[0] + refCalc*refNorm[0]) + blur*randSphereDir[0];
+                                                    shadowDir[1] = (RI*shadowDir[1] + refCalc*refNorm[1]) + blur*randSphereDir[1];
+                                                    shadowDir[2] = (RI*shadowDir[2] + refCalc*refNorm[2]) + blur*randSphereDir[2];
                                                     norm(shadowDir);					
                                                 }
                                                 continue;
@@ -1119,26 +1153,26 @@
         int numPixels = xRes*yRes;
         vec3 l_vec = vec3(0.2125,0.7154,0.0721);
         for (int ind =0; ind < numPixels; ind++) {
-            exposure += 9.6f*l_vec.dot(preScreen[ind]/sampleCount)/numPixels;
+            exposure += l_vec.dot(preScreen[ind]);
         }
+        exposure *= 9.6f / xRes*yRes*sampleCount;
     }
 
-    #include <mutex>
     void Renderers::OMPAutoExp() {
         exposure = 0.0f;
         int numPixels = xRes*yRes;
         vec3 l_vec = vec3(0.2125,0.7154,0.0721);
-        std::mutex lock;
 
         #pragma omp parallel for
         for (int ind =0; ind < numPixels; ind++) {
-            std::lock_guard<std::mutex> guard(lock);
-            exposure += 9.6f*l_vec.dot(preScreen[ind]/sampleCount)/numPixels;
+            #pragma omp atomic
+            exposure += l_vec.dot(preScreen[ind]);
         }
+        exposure *= 9.6f / xRes*yRes*sampleCount;
     }
 
-    static float SkePUExposureFuncCalc(vec3 col, float div) {
-        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/div;
+    static float SkePUExposureFuncCalc(vec3 col) {
+        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z);
     }
 
     void Renderers::SkePUAutoExp() {
@@ -1150,13 +1184,12 @@
             screen(ind) = preScreen[ind];
         }
 
-        // Configure SkePU
         auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(skepuBackend)};
         spec.activateBackend();
         auto exposureFunc = skepu::MapReduce<1>(SkePUExposureFuncCalc, skepu::util::add<float>);
         exposureFunc.setBackend(spec);
 
-        exposure = 9.6f * exposureFunc(screen, numPixels*sampleCount);
+        exposure = 9.6f * exposureFunc(screen) / numPixels*sampleCount;
     }
 
 

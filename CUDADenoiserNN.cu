@@ -1,21 +1,6 @@
 #include "CUDAHeader.h"
 #include "DenoiserNN.h"
 
-struct FPConstants {
-
-    int RESH, RESV;
-    int samples;
-    float onetwo[360];
-    float twothree[100];
-    float threefour[70];
-
-};
-struct BPConstants {
-    int RESH, RESV;
-    int samples, denoisingN;
-    float learningRate;
-};
-
 __global__
 void CUDAForwardPropFunc(ForPropIn* in, ForPropOut* out, FPConstants* sConstants) {
     // Secondary Features
@@ -311,52 +296,43 @@ void CUDAForwardPropFunc(ForPropIn* in, ForPropOut* out, FPConstants* sConstants
 
 void CUDADenoiserNN::ForwardProp() {
 
-    ForPropIn* CUDAIn;
-    ForPropOut* CUDAOut;
-    FPConstants* CUDAConstants;
-
     int numPixels = xRes*yRes;
     delete denoiserNN.sFeatures;
     denoiserNN.sFeatures = new SecondaryFeatures[numPixels];
 
-    cudaMallocManaged(&CUDAIn,  numPixels*sizeof(ForPropIn));
-    cudaMallocManaged(&CUDAOut, numPixels*sizeof(ForPropOut));
-    cudaMallocManaged(&CUDAConstants, sizeof(FPConstants));
-
     // Set sConstants
     int w;
-    CUDAConstants->samples = sampleCount;
+    CUDAFPConstants->samples = sampleCount;
     for (w=0;w<360;w++)
-        CUDAConstants->onetwo[w] = denoiserNN.onetwo[w];
+        CUDAFPConstants->onetwo[w] = denoiserNN.onetwo[w];
     for (w=0;w<100;w++)
-        CUDAConstants->twothree[w] = denoiserNN.twothree[w];
+        CUDAFPConstants->twothree[w] = denoiserNN.twothree[w];
     for (w=0;w<70;w++)
-        CUDAConstants->threefour[w] = denoiserNN.threefour[w];
-    CUDAConstants->RESH = xRes;
-    CUDAConstants->RESV = yRes;
+        CUDAFPConstants->threefour[w] = denoiserNN.threefour[w];
+    CUDAFPConstants->RESH = xRes;
+    CUDAFPConstants->RESV = yRes;
 
     // Set Inputs
     for (int ind = 0; ind < xRes*yRes; ind++) {
 
-        CUDAIn[ind].normal      = (normal[ind].x     + normal[ind].y   + normal[ind].z)   / (3.0f * sampleCount);
-        CUDAIn[ind].alb1        = (albedo1[ind].x    + albedo1[ind].y  + albedo1[ind].z)  / (3.0f * sampleCount);
-        CUDAIn[ind].alb2        = (albedo2[ind].x    + albedo2[ind].y  + albedo2[ind].z)  / (3.0f * sampleCount);
-        CUDAIn[ind].worldPos    = (worldPos[ind].x   + worldPos[ind].y + worldPos[ind].z) / (3.0f * sampleCount);
-        CUDAIn[ind].directLight = directLight[ind].x / sampleCount;
+        CUDAFPIn[ind].normal      = (normal[ind].x     + normal[ind].y   + normal[ind].z)   / (3.0f * sampleCount);
+        CUDAFPIn[ind].alb1        = (albedo1[ind].x    + albedo1[ind].y  + albedo1[ind].z)  / (3.0f * sampleCount);
+        CUDAFPIn[ind].alb2        = (albedo2[ind].x    + albedo2[ind].y  + albedo2[ind].z)  / (3.0f * sampleCount);
+        CUDAFPIn[ind].worldPos    = (worldPos[ind].x   + worldPos[ind].y + worldPos[ind].z) / (3.0f * sampleCount);
+        CUDAFPIn[ind].directLight = directLight[ind].x / sampleCount;
 
-        CUDAIn[ind].stdDev[0] = denoisingInf[ind].stdDev[0];
-        CUDAIn[ind].stdDev[1] = denoisingInf[ind].stdDev[1];
-        CUDAIn[ind].stdDev[2] = denoisingInf[ind].stdDev[2];
-        CUDAIn[ind].stdDev[3] = denoisingInf[ind].stdDev[3];
-        CUDAIn[ind].stdDev[4] = denoisingInf[ind].stdDev[4];
-        CUDAIn[ind].stdDev[5] = denoisingInf[ind].stdDev[5];
+        CUDAFPIn[ind].stdDev[0] = denoisingInf[ind].stdDev[0];
+        CUDAFPIn[ind].stdDev[1] = denoisingInf[ind].stdDev[1];
+        CUDAFPIn[ind].stdDev[2] = denoisingInf[ind].stdDev[2];
+        CUDAFPIn[ind].stdDev[3] = denoisingInf[ind].stdDev[3];
+        CUDAFPIn[ind].stdDev[4] = denoisingInf[ind].stdDev[4];
+        CUDAFPIn[ind].stdDev[5] = denoisingInf[ind].stdDev[5];
     }
-
 
     dim3 numBlocks(xRes/rootThreadsPerBlock + 1, 
                 yRes/rootThreadsPerBlock + 1); 
 
-    CUDAForwardPropFunc<<<numBlocks,dim3(rootThreadsPerBlock, rootThreadsPerBlock)>>>(CUDAIn, CUDAOut, CUDAConstants );
+    CUDAForwardPropFunc<<<numBlocks,dim3(rootThreadsPerBlock, rootThreadsPerBlock)>>>(CUDAFPIn, CUDAFPOut, CUDAFPConstants );
 
     // Wait for GPU to finish before accessing on host
     cudaDeviceSynchronize();
@@ -367,7 +343,7 @@ void CUDADenoiserNN::ForwardProp() {
     SecondaryFeatures* s;
     for (ind =0; ind < numPixels; ind++) {
 
-        ret = CUDAOut[ind];
+        ret = CUDAFPOut[ind];
         info = &denoisingInf[ind];
         s = &denoiserNN.sFeatures[ind];
 
@@ -389,7 +365,6 @@ void CUDADenoiserNN::ForwardProp() {
         s->L = ret.L;
 
     }
-
 }
 
 __global__
@@ -505,13 +480,13 @@ void CUDAFilterDerivFunc(FilterDerivIn* in, FilterDerivOut* out, BPConstants* sC
 
 __global__
 void CUDABackPropFunc(SkePUBPIn* in, SkePUBPOut* out, BPConstants* sConstants) {
-    uint pi = (blockIdx.x * blockDim.x) + threadIdx.x;
-    uint pj = (blockIdx.y * blockDim.y) + threadIdx.y;
+            uint pi = (blockIdx.x * blockDim.x) + threadIdx.x;
+            uint pj = (blockIdx.y * blockDim.y) + threadIdx.y;
 
-    if (pi >= sConstants->RESH || pj >= sConstants->RESV)
-        return;
+            if (pi >= sConstants->RESH || pj >= sConstants->RESV)
+                return;
 
-    int pixel = pj*sConstants->RESH + pi;
+            int pixel = pj*sConstants->RESH + pi;
 
 
             float paramOverWeight, dot;
@@ -570,23 +545,15 @@ void CUDADenoiserNN::BackProp() {
     int numPixels = xRes*yRes;
 
     dim3 numBlocks(xRes/rootThreadsPerBlock + 1, 
-                yRes/rootThreadsPerBlock + 1); 
+                yRes/rootThreadsPerBlock + 1);
 
-    BPConstants* CUDAConstants;
-    cudaMallocManaged(&CUDAConstants,  sizeof(BPConstants));
     CUDAConstants->RESH = xRes;
     CUDAConstants->RESV = yRes;
     CUDAConstants->samples = sampleCount;
     CUDAConstants->learningRate = denoiserNN.learningRate;
-    CUDAConstants->denoisingN = denoisingN;
-
+    CUDAConstants->denoisingN = denoisingN; 
+    
     // Calc Filter Derivs with Map Overlap
-
-    FilterDerivIn* CUDAFIn;
-    FilterDerivOut* CUDAFOut;
-
-    cudaMallocManaged(&CUDAFIn,  numPixels*sizeof(FilterDerivIn));
-    cudaMallocManaged(&CUDAFOut,  numPixels*sizeof(FilterDerivOut));
 
     int c;
     for (int ind = 0; ind < numPixels; ind++) {
@@ -612,12 +579,6 @@ void CUDADenoiserNN::BackProp() {
 
     // Wait for GPU to finish before accessing on host
     cudaDeviceSynchronize();
-
-    SkePUBPIn* CUDAIn;
-    SkePUBPOut* CUDAOut;
-
-    cudaMallocManaged(&CUDAIn,  numPixels*sizeof(SkePUBPIn));
-    cudaMallocManaged(&CUDAOut,  numPixels*sizeof(SkePUBPOut));
 
     for (int ind = 0; ind < numPixels; ind++) {
 
@@ -648,11 +609,38 @@ void CUDADenoiserNN::BackProp() {
         for (c=0; c<70; c++) 
             denoiserNN.threefour[c] += CUDAOut[ind].threefour[c];
     }
+}
 
-    // Free memory
+void CUDADenoiserNN::InitBuffers() {
+    int numPixels = xRes*yRes;
+
+    // Forward Prop
+    cudaMallocManaged(&CUDAFPIn,  numPixels*sizeof(ForPropIn));
+    cudaMallocManaged(&CUDAFPOut, numPixels*sizeof(ForPropOut));
+    cudaMallocManaged(&CUDAFPConstants, sizeof(FPConstants));
+
+    // Back Prop
+    cudaMallocManaged(&CUDAConstants,  sizeof(BPConstants));
+
+    cudaMallocManaged(&CUDAFIn,  numPixels*sizeof(FilterDerivIn));
+    cudaMallocManaged(&CUDAFOut,  numPixels*sizeof(FilterDerivOut));
+
+    cudaMallocManaged(&CUDAIn,  numPixels*sizeof(SkePUBPIn));
+    cudaMallocManaged(&CUDAOut,  numPixels*sizeof(SkePUBPOut));
+}
+
+void CUDADenoiserNN::FreeBuffers() {
+
+    // Free fp memory
+    cudaFree(CUDAFPConstants);
+    cudaFree(CUDAFPIn);
+    cudaFree(CUDAFPOut);
+
+    // Free bp memory
     cudaFree(CUDAFIn);
     cudaFree(CUDAFOut);
     cudaFree(CUDAConstants);
     cudaFree(CUDAIn);
     cudaFree(CUDAOut);
+
 }

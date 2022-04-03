@@ -164,7 +164,7 @@
     }
     
     __device__
-    bool ShadowIntersect(float3 rayDir, float3 rayOrigin, float maxT, int impShape, Constants* constants, float3 randDir) {
+    bool ShadowIntersect(float3 rayDir, float3 rayOrigin, float maxT, int impShape, Constants* constants, RandomSeeds s) {
         float E = 0.001f;
         for (int ind = 0; ind < constants->numShapes; ind++) {
             if (ind == impShape)
@@ -310,20 +310,30 @@
 
                     // Can refract check
                     float sinSq = RI*RI*(1.0f-cosi*cosi);
-                    bool canRefract = 1.0f - sinSq > E;
-                            
+                    bool canRefract = 1.0f - sinSq > E;   
+
+                    float3 randDir {0.0f, 0.0f, 0.0f};
+                    if (blur>0.0f) {
+                        float r1 = RandBetween(s, 0, 1.0f);
+                        r1 = acosf(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                        float r2 = RandBetween(s, 0, 2.0f*M_PI);
+                        float x = cosf(r1)*cosf(r2);
+                        float y = cosf(r1)*sinf(r2);
+                        float z = sinf(r1);
+                        randDir = {x, y, z};
+                    }                    
 
                     if (!canRefract) {
-                        rayDir.x = (rayDir.x - 2.0f*cosi*refNorm.x)*(1.0f - blur) + blur*randDir.x;
-                        rayDir.y = (rayDir.y - 2.0f*cosi*refNorm.y)*(1.0f - blur) + blur*randDir.y;
-                        rayDir.z = (rayDir.z - 2.0f*cosi*refNorm.z)*(1.0f - blur) + blur*randDir.z;
+                        rayDir.x = (rayDir.x - 2.0f*cosi*refNorm.x) + blur*randDir.x;
+                        rayDir.y = (rayDir.y - 2.0f*cosi*refNorm.y) + blur*randDir.y;
+                        rayDir.z = (rayDir.z - 2.0f*cosi*refNorm.z) + blur*randDir.z;
                         rayDir = normalize(rayDir);
                     }
                     else {
                         float refCalc = RI*cosi - sqrtf(1-sinSq);
-                        rayDir.x = (RI*rayDir.x + refCalc*refNorm.x)*(1.0f - blur) + blur*randDir.x;
-                        rayDir.y = (RI*rayDir.y + refCalc*refNorm.y)*(1.0f - blur) + blur*randDir.y;
-                        rayDir.z = (RI*rayDir.z + refCalc*refNorm.z)*(1.0f - blur) + blur*randDir.z;
+                        rayDir.x = (RI*rayDir.x + refCalc*refNorm.x) + blur*randDir.x;
+                        rayDir.y = (RI*rayDir.y + refCalc*refNorm.y) + blur*randDir.y;
+                        rayDir.z = (RI*rayDir.z + refCalc*refNorm.z) + blur*randDir.z;
                         rayDir = normalize(rayDir);					
                     }
                     continue;
@@ -559,10 +569,21 @@
                             
                             float schlickRand = RandBetween(s, 0, 1);
 
+                            float3 randSphereDir {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = RandBetween(s, 0, 1.0f);
+                                r1 = acosf(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = RandBetween(s, 0, 2.0f*M_PI);
+                                float x = cosf(r1)*cosf(r2);
+                                float y = cosf(r1)*sinf(r2);
+                                float z = sinf(r1);
+                                randSphereDir = {x, y, z};
+                            }   
+
                             if (!canRefract || schlick > schlickRand) {
-                                dir.x = (dirIn.x - 2.0f*cosi*refNorm.x)*(1.0f - blur) + blur*randDir.x;
-                                dir.y = (dirIn.y - 2.0f*cosi*refNorm.y)*(1.0f - blur) + blur*randDir.y;
-                                dir.z = (dirIn.z - 2.0f*cosi*refNorm.z)*(1.0f - blur) + blur*randDir.z;
+                                dir.x = (dirIn.x - 2.0f*cosi*refNorm.x) + blur*randSphereDir.x;
+                                dir.y = (dirIn.y - 2.0f*cosi*refNorm.y) + blur*randSphereDir.y;
+                                dir.z = (dirIn.z - 2.0f*cosi*refNorm.z) + blur*randSphereDir.z;
                                 dir = normalize(dir);
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
                                 float cosine2 = dot(dir, normals[pos]);
@@ -571,9 +592,9 @@
                             else {
 
                                 float refCalc = RI*cosi - sqrtf(1-sinSq);
-                                dir.x = (RI*dirIn.x + refCalc*refNorm.x)*(1.0f - blur) + blur*randDir.x;
-                                dir.y = (RI*dirIn.y + refCalc*refNorm.y)*(1.0f - blur) + blur*randDir.y;
-                                dir.z = (RI*dirIn.z + refCalc*refNorm.z)*(1.0f - blur) + blur*randDir.z;
+                                dir.x = (RI*dirIn.x + refCalc*refNorm.x) + blur*randSphereDir.x;
+                                dir.y = (RI*dirIn.y + refCalc*refNorm.y) + blur*randSphereDir.y;
+                                dir.z = (RI*dirIn.z + refCalc*refNorm.z) + blur*randSphereDir.z;
                                 dir = normalize(dir);
 
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
@@ -592,9 +613,21 @@
 
                             float prevDirNormalDot = dot(dirIn, refNorm);
 
-                            dir.x = (dirIn.x - 2.0f*prevDirNormalDot*refNorm.x)*(1.0f - blur) + blur*randDir.x;
-                            dir.y = (dirIn.y - 2.0f*prevDirNormalDot*refNorm.y)*(1.0f - blur) + blur*randDir.y;
-                            dir.z = (dirIn.z - 2.0f*prevDirNormalDot*refNorm.z)*(1.0f - blur) + blur*randDir.z;
+                            float3 randSphereDir {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = RandBetween(s, 0, 1.0f);
+                                r1 = acosf(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = RandBetween(s, 0, 2.0f*M_PI);
+                                float x = cosf(r1)*cosf(r2);
+                                float y = cosf(r1)*sinf(r2);
+                                float z = sinf(r1);
+                                randSphereDir = {x, y, z};
+                            }  
+
+                            dir.x = (dirIn.x - 2.0f*prevDirNormalDot*refNorm.x) + blur*randSphereDir.x;
+                            dir.y = (dirIn.y - 2.0f*prevDirNormalDot*refNorm.y) + blur*randSphereDir.y;
+                            dir.z = (dirIn.z - 2.0f*prevDirNormalDot*refNorm.z) + blur*randSphereDir.z;
+                            dir = normalize(dir);
 
                             float cosine2 = dot(dir, normals[pos]);
 
@@ -675,7 +708,7 @@
                                     // Need to send shadow ray to see if point is in path of direct light
 
 
-                                    if (!ShadowIntersect(directDir, posHit, dirLen, impShape, constants, randDir)) {
+                                    if (!ShadowIntersect(directDir, posHit, dirLen, impShape, constants, s)) {
                                         float cosine = fabs(dot(directDir, randDir));
                                         if (cosine > 0.01f) {
                                             shadowRays[pos]=1; 
@@ -845,8 +878,6 @@
             // Wait for GPU to finish before accessing on host
             cudaDeviceSynchronize();
 
-
-
             // TODO: Looping like this takes time (16ms ? ) definitely eating into render time
             ReturnStruct ret;
             sampleCount++;
@@ -911,8 +942,10 @@ void CUDARender::UpdateConstants() {
         // Post Process
             cudaFree(CUDAPostScreen);
             cudaFree(CUDADisplay);
+            cudaFree(gpuExposure);
             cudaMallocManaged(&CUDAPostScreen, xRes*yRes*sizeof(float3));
             cudaMallocManaged(&CUDADisplay,    xRes*yRes*sizeof(float3));
+            cudaMallocManaged(&gpuExposure,    xRes*yRes*sizeof(float));
         // Post Process
 
         // Constants
@@ -1033,27 +1066,23 @@ void CUDARender::PostProcess() {
 }
 
 __global__
-void CUDAAE(float3* CUDADisplay, float* gpuExposure, int xRes, int yRes, int sampleCount) {
+void CUDAAE(float3* CUDADisplay, float* gpuExposure, int xRes, int yRes) {
     uint i = (blockIdx.x * blockDim.x) + threadIdx.x;
     uint j = (blockIdx.y * blockDim.y) + threadIdx.y;
     if (i >= xRes || j >= yRes)
         return;
     int ind = j*xRes + i;
     float3 col = CUDADisplay[ind];
-    gpuExposure[ind] = 9.6f * (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/((float)xRes*yRes*sampleCount);
+    gpuExposure[ind] = 0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z;
 }
 
 void CUDARender::CUDAAutoExp() {
-    
-    float* gpuExposure;
-    cudaMallocManaged(&gpuExposure, xRes*yRes*sizeof(float));
-
     cudaMemcpy(CUDADisplay, preScreen, xRes*yRes, cudaMemcpyHostToDevice);
 
     dim3 numBlocks(xRes/rootThreadsPerBlock + 1, 
                 yRes/rootThreadsPerBlock + 1); 
 
-    CUDAAE<<<numBlocks,dim3(rootThreadsPerBlock, rootThreadsPerBlock)>>>(CUDADisplay, gpuExposure, xRes, yRes, sampleCount);       
+    CUDAAE<<<numBlocks,dim3(rootThreadsPerBlock, rootThreadsPerBlock)>>>(CUDADisplay, gpuExposure, xRes, yRes);       
     
     // Wait for GPU to finish before accessing on host
     cudaDeviceSynchronize();
@@ -1061,6 +1090,5 @@ void CUDARender::CUDAAutoExp() {
     exposure = 0;
     for (int ind =0; ind<xRes*yRes;ind++)
         exposure += gpuExposure[ind];
-
-    cudaFree(gpuExposure);
+    exposure *= 9.6f / xRes*yRes*sampleCount;
 }

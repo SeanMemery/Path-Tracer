@@ -1,11 +1,5 @@
 #include "CUDAHeader.h"
 
-struct CUDADenoiseConstants {
-
-    int RESH, RESV;
-    int denoisingN;
-
-};
 
 __global__
 void CUDADenoiseFunc(GPUInf* in, FilterVals* out, CUDADenoiseConstants* constants) {
@@ -128,15 +122,7 @@ void CUDADenoiseFunc(GPUInf* in, FilterVals* out, CUDADenoiseConstants* constant
 
 
 void CUDADenoiser::denoise() {
-        GPUInf* CUDAIn;
-        FilterVals* CUDAOut;
         int numPixels = xRes*yRes;
-
-        CUDADenoiseConstants* CUDAConstants;
-
-        cudaMallocManaged(&CUDAIn,  numPixels*sizeof(GPUInf));
-        cudaMallocManaged(&CUDAOut, numPixels*sizeof(FilterVals));
-        cudaMallocManaged(&CUDAConstants, sizeof(CUDADenoiseConstants));
 
         CUDAConstants->RESH = xRes;
         CUDAConstants->RESV = yRes;
@@ -193,9 +179,17 @@ void CUDADenoiser::denoise() {
             denoisedCol[ind] = vec3(res.x, res.y, res.z);
             denoisingInf[ind].wcSum = res.wcSum;
         }
+}
 
-        // Free memory
-        cudaFree(CUDAIn);
-        cudaFree(CUDAConstants);
-        cudaFree(CUDAOut);
+void CUDADenoiser::InitBuffers() {
+    cudaMallocManaged(&CUDAIn,  xRes*yRes*sizeof(GPUInf));
+    cudaMallocManaged(&CUDAOut, xRes*yRes*sizeof(FilterVals));
+    cudaMallocManaged(&CUDAConstants, sizeof(CUDADenoiseConstants));
+}
+
+void CUDADenoiser::FreeBuffers() {
+    // Free memory
+    cudaFree(CUDAIn);
+    cudaFree(CUDAConstants);
+    cudaFree(CUDAOut);
 }

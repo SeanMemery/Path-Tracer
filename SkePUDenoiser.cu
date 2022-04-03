@@ -541,7 +541,6 @@ void Denoiser::SkePUDenoise() {
         // 4. Get primary feature weights from NN output at current pixel 
         // 5. Apply cross-bilateral filter to pixel, taking into account surrounding pixels
 
-        // ----- 5 ----- (with manual variance values)
 
         // Create SkePU Matrix of GPUInf
         auto mat = skepu::Matrix<GPUInf>(yRes, xRes);

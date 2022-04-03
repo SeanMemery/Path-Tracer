@@ -1812,7 +1812,6 @@ void DenoiserNN::SkePUForwardProp() {
     convol.setEdgeMode(skepu::Edge::Duplicate);
 
     convol(out, in, sConstants);
-    out.updateHost();
 
     int ind, v;
     ForPropOut ret;
@@ -2191,7 +2190,7 @@ static FilterDerivOut SkePUFDFunc(skepu::Region2D<FilterDerivIn> r, int samples)
             paramDiffs[0] = pow(j,2)+pow(i,2);
             dVals[0] = paramDiffs[0] / (2.0f * r(0,0).variances[0] + 0.000001f);
             // Colour d value
-            paramDiffs[0] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
+            paramDiffs[1] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
             dVals[1] = paramDiffs[1] / (2.0f * r(0,0).variances[1] * (r(0,0).stdDev[0] + r(j,i).stdDev[0])  + 0.000001f);
             // Normal d value
             paramDiffs[2] = pow(iNormal[0] - jNormal[0],2)+pow(iNormal[1] - jNormal[1],2) + pow(iNormal[2] - jNormal[2],2);
@@ -2590,7 +2589,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ FilterDerivOut CU(skepu::R
             paramDiffs[0] = pow(j,2)+pow(i,2);
             dVals[0] = paramDiffs[0] / (2.0f * r(0,0).variances[0] + 0.000001f);
             // Colour d value
-            paramDiffs[0] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
+            paramDiffs[1] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
             dVals[1] = paramDiffs[1] / (2.0f * r(0,0).variances[1] * (r(0,0).stdDev[0] + r(j,i).stdDev[0])  + 0.000001f);
             // Normal d value
             paramDiffs[2] = pow(iNormal[0] - jNormal[0],2)+pow(iNormal[1] - jNormal[1],2) + pow(iNormal[2] - jNormal[2],2);
@@ -2699,7 +2698,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE FilterDerivOut OMP(skepu::Region2D<Fi
             paramDiffs[0] = pow(j,2)+pow(i,2);
             dVals[0] = paramDiffs[0] / (2.0f * r(0,0).variances[0] + 0.000001f);
             // Colour d value
-            paramDiffs[0] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
+            paramDiffs[1] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
             dVals[1] = paramDiffs[1] / (2.0f * r(0,0).variances[1] * (r(0,0).stdDev[0] + r(j,i).stdDev[0])  + 0.000001f);
             // Normal d value
             paramDiffs[2] = pow(iNormal[0] - jNormal[0],2)+pow(iNormal[1] - jNormal[1],2) + pow(iNormal[2] - jNormal[2],2);
@@ -2808,7 +2807,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE FilterDerivOut CPU(skepu::Region2D<Fi
             paramDiffs[0] = pow(j,2)+pow(i,2);
             dVals[0] = paramDiffs[0] / (2.0f * r(0,0).variances[0] + 0.000001f);
             // Colour d value
-            paramDiffs[0] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
+            paramDiffs[1] = pow(iCol[0] - jCol[0],2)+pow(iCol[1] - jCol[1],2) + pow(iCol[2] - jCol[2],2);
             dVals[1] = paramDiffs[1] / (2.0f * r(0,0).variances[1] * (r(0,0).stdDev[0] + r(j,i).stdDev[0])  + 0.000001f);
             // Normal d value
             paramDiffs[2] = pow(iNormal[0] - jNormal[0],2)+pow(iNormal[1] - jNormal[1],2) + pow(iNormal[2] - jNormal[2],2);
@@ -2880,10 +2879,8 @@ void DenoiserNN::SkePUBackProp() {
     convol.setEdgeMode(skepu::Edge::Duplicate);
 
     convol(fOut, fIn, sampleCount);
-    //fOut.updateHost();
 
     //Calc New Weights with Map, then loop through weights to add
-
     auto bpIn  = skepu::Matrix<SkePUBPIn>(yRes, xRes);
     auto bpOut = skepu::Matrix<SkePUBPOut>(yRes, xRes);
     for (int ind = 0; ind < xRes*yRes; ind++) {
@@ -2908,30 +2905,28 @@ void DenoiserNN::SkePUBackProp() {
 	map.setBackend(spec);
 
     map(bpOut, bpIn, sampleCount, learningRate);
-    //bpOut.updateHost();
 
     for (int ind = 0; ind < xRes*yRes; ind++) {
         for (c=0; c<360; c++)
-             onetwo[c] += bpOut[ind].onetwo[c];
+            onetwo[c] += bpOut(ind).onetwo[c];
         for (c=0; c<100; c++) 
-            twothree[c] += bpOut[ind].twothree[c];
+            twothree[c] += bpOut(ind).twothree[c];
         for (c=0; c<70; c++) 
-            threefour[c] += bpOut[ind].threefour[c];
+            threefour[c] += bpOut(ind).threefour[c];
     }
 }
 
 void DenoiserNN::GenRelMSE() {
 
     relMSE = 0.0f;
-    int totalPixels = xRes*yRes;
+    vec3 diff;
 
-    #pragma omp parallel for
-    for (int ind = 0; ind < totalPixels; ind++) {
-
+    for (int ind = 0; ind < xRes*yRes; ind++) {
         // Gen RelMSE
-        relMSE += (denoisedCol[ind].x - targetCol[ind].x)*(denoisedCol[ind].x - targetCol[ind].x)/(targetCol[ind].x*targetCol[ind].x + 0.00001f);
-        relMSE += (denoisedCol[ind].y - targetCol[ind].y)*(denoisedCol[ind].y - targetCol[ind].y)/(targetCol[ind].y*targetCol[ind].y + 0.00001f);
-        relMSE += (denoisedCol[ind].z - targetCol[ind].z)*(denoisedCol[ind].z - targetCol[ind].z)/(targetCol[ind].z*targetCol[ind].z + 0.00001f);
+        diff = denoisedCol[ind] - targetCol[ind];
+        relMSE += diff.x*diff.x/(targetCol[ind].x*targetCol[ind].x + 0.00001f);
+        relMSE += diff.y*diff.y/(targetCol[ind].y*targetCol[ind].y + 0.00001f);
+        relMSE += diff.z*diff.z/(targetCol[ind].z*targetCol[ind].z + 0.00001f);
     }
 
     relMSE *= sampleCount/2.0f;
@@ -2940,6 +2935,8 @@ void DenoiserNN::GenRelMSE() {
 void DenoiserNN::InitTraining() {
 
     training = true;
+
+    trainingTime = 0;
 
     // Get Target
 	denoiser.saveTargetCol();
@@ -2956,7 +2953,6 @@ void DenoiserNN::InitTraining() {
         oFile << "Res: (" << xRes << "x" << yRes << ") Samples: " << samplesWhenTraining << " L Rate: " << learningRate << "," << std::endl;  
         oFile.close();
     }
-
 }
 void DenoiserNN::AppendTrainingFile() {
     std::ofstream oFile("ErrorLog.txt", std::ios_base::app);
@@ -2969,6 +2965,12 @@ void DenoiserNN::EndTraining() {
 
     training = false;
 
+    std::ofstream oFile("ErrorLog.txt", std::ios_base::app);
+    if (oFile.is_open()) {
+        oFile << trainingTime << std::endl;  
+        oFile.close();
+    }
+
 	// Save Trained Weights
 	OutputWeights("NNWeights");
 }
@@ -2980,6 +2982,12 @@ void DenoiserNN::TrainNN() {
 
             // Reset Sample Count
             sampleCount = 0;
+
+            // Set Learning Rate
+            float inv = lRateInt;
+            if (trainingLimitBool)
+                inv = lRateInt + (lRateIntMax - lRateInt)*((float)trainingEpoch/(float)trainingCount);
+            learningRate = 1.0f / pow(10, inv);
 
             // Initialize
             GLOBALS::DeleteScreens(false);
@@ -3006,6 +3014,11 @@ void DenoiserNN::TrainNN() {
 
             // Save Epoch Time
             epochTime = std::chrono::duration_cast<milli_second_>(clock_::now() - epochTimer).count();
+            trainingTime += epochTime;
+
+            // Limit 
+            if (trainingLimitBool && trainingEpoch == trainingCount)
+                training = false;
 
 }
 

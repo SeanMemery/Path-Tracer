@@ -3,53 +3,56 @@
 #define SKEPU_CUDA 1
 #include "Renderers.h"
 
+    static float dot(float* x, float* y) {
+        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+    }
+    static void norm(float* vec) {
+        auto d = sqrt(dot(vec,vec)); 
+        vec[0]/=d; 
+        vec[1]/=d; 
+        vec[2]/=d; 
+    }
+    static float randBetween(RandomSeeds& seeds, float min, float max) {
+        uint64_t s0 = seeds.s1;
+        uint64_t s1 = seeds.s2;
+        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
+        double one_two = ((uint64_t)1 << 63) * (double)2.0;
+        float rand = xorshiro / one_two;
+        s1 ^= s0;
+        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
+        seeds.s2 = (s1 << 28) | (s1 >> 36);
+        rand *= max - min;
+        rand += min;
+        return rand;
+    }
+    static void QMult(float* q1, float* q2 ) {
+        auto A1 = (q1[3] + q1[1]) * (q2[1] + q2[2]);
+        auto A3 = (q1[0] - q1[2]) * (q2[0] + q2[3]);
+        auto A4 = (q1[0] + q1[2]) * (q2[0] - q2[3]);
+        auto A2 = A1 + A3 + A4;
+        auto A5 = (q1[3] - q1[1]) * (q2[1] - q2[2]);
+        A5 = (A5 + A2) / 2.0f;
+
+        auto Q1 = A5 - A1 + (q1[3] - q1[2]) * (q2[2] - q2[3]);
+        auto Q2 = A5 - A2 + (q1[1] + q1[0]) * (q2[1] + q2[0]);
+        auto Q3 = A5 - A3 + (q1[0] - q1[1]) * (q2[2] + q2[3]);
+        auto Q4 = A5 - A4 + (q1[3] + q1[2]) * (q2[0] - q2[1]);
+
+        q1[0] = Q1; q1[1] = Q2; q1[2] = Q3; q1[3] = Q4;
+    }
+    static void rotate(float* to_rotate, float* q) {
+        float p[4]  {0, to_rotate[0], to_rotate[1], to_rotate[2]};
+        float qR[4] {q[0],-q[1],-q[2],-q[3]};
+
+        QMult(p, q);
+        QMult(qR, p);
+        to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
+    };
+
     static ReturnStruct RenderFunc(skepu::Index2D ind, RandomSeeds seeds,  Constants  sConstants) {
         // Ray
         float camPos[3] = { sConstants.camPos[0],  sConstants.camPos[1],  sConstants.camPos[2]};
         float rayPos[3] = {camPos[0], camPos[1], camPos[2]};
-
-        // Lambda Functions
-            auto dot  = [=](float vec1[3], float vec2[3]) {return vec1[0]*vec2[0] + vec1[1]*vec2[1] + vec1[2]*vec2[2];};
-            auto norm = [&](float vec[3]) {auto d = sqrt(dot(vec,vec)); vec[0]/=d; vec[1]/=d; vec[2]/=d; };
-            auto randBetween = [](RandomSeeds& seeds, float min, float max) {
-                uint64_t s0 = seeds.s1;
-                uint64_t s1 = seeds.s2;
-                uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-                double one_two = ((uint64_t)1 << 63) * (double)2.0;
-                float rand = xorshiro / one_two;
-                s1 ^= s0;
-                seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
-                seeds.s2 = (s1 << 28) | (s1 >> 36);
-
-                rand *= max - min;
-                rand += min;
-                return rand;
-            };
-            auto QMult = [&](float q1[4], float q2[4] ) {
-                auto A1 = (q1[3] + q1[1]) * (q2[1] + q2[2]);
-                auto A3 = (q1[0] - q1[2]) * (q2[0] + q2[3]);
-                auto A4 = (q1[0] + q1[2]) * (q2[0] - q2[3]);
-                auto A2 = A1 + A3 + A4;
-                auto A5 = (q1[3] - q1[1]) * (q2[1] - q2[2]);
-                A5 = (A5 + A2) / 2.0f;
-
-                auto Q1 = A5 - A1 + (q1[3] - q1[2]) * (q2[2] - q2[3]);
-                auto Q2 = A5 - A2 + (q1[1] + q1[0]) * (q2[1] + q2[0]);
-                auto Q3 = A5 - A3 + (q1[0] - q1[1]) * (q2[2] + q2[3]);
-                auto Q4 = A5 - A4 + (q1[3] + q1[2]) * (q2[0] - q2[1]);
-
-                q1[0] = Q1; q1[1] = Q2; q1[2] = Q3; q1[3] = Q4;
-            };
-            auto rotate = [&](float to_rotate[3], float q[4]) {
-
-                float p[4]  {0, to_rotate[0], to_rotate[1], to_rotate[2]};
-                float qR[4] {q[0],-q[1],-q[2],-q[3]};
-
-                QMult(p, q);
-                QMult(qR, p);
-                to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
-            };
-        // Lambda Functions
 
         // Rand Samp
         float rSamps[2] = {0.0f, 0.0f};
@@ -354,10 +357,20 @@
 
                             float schlickRand = randBetween(seeds, 0, 1);
 
+                            float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = randBetween(seeds, 0, 1.0f);
+                                r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = randBetween(seeds, 0, 2.0f*M_PI);
+                                randSphereDir[0] = cos(r1)*cos(r2);
+                                randSphereDir[1] = cos(r1)*sin(r2);
+                                randSphereDir[2] = sin(r1);
+                            }    
+
                             if (!canRefract || schlick > schlickRand) {
-                                dir[0] = (dirIn[0] - 2.0f*cosi*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                dir[1] = (dirIn[1] - 2.0f*cosi*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                dir[2] = (dirIn[2] - 2.0f*cosi*refNorm[2])*(1.0f - blur) + blur*randDir[2];
+                                dir[0] = (dirIn[0] - 2.0f*cosi*refNorm[0]) + blur*randSphereDir[0];
+                                dir[1] = (dirIn[1] - 2.0f*cosi*refNorm[1]) + blur*randSphereDir[1];
+                                dir[2] = (dirIn[2] - 2.0f*cosi*refNorm[2]) + blur*randSphereDir[2];
                                 norm(dir);
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
                                 float cosine2 = dot(normals[pos], dir);
@@ -366,9 +379,9 @@
                             else {
 
                                 float refCalc = RI*cosi - (float)sqrt(1.0f-sinSq);
-                                dir[0] = (RI*dirIn[0] + refCalc*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                dir[1] = (RI*dirIn[1] + refCalc*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                dir[2] = (RI*dirIn[2] + refCalc*refNorm[2])*(1.0f - blur) + blur*randDir[2];
+                                dir[0] = (RI*dirIn[0] + refCalc*refNorm[0]) + blur*randSphereDir[0];
+                                dir[1] = (RI*dirIn[1] + refCalc*refNorm[1]) + blur*randSphereDir[1];
+                                dir[2] = (RI*dirIn[2] + refCalc*refNorm[2]) + blur*randSphereDir[2];
                                 norm(dir);
 
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
@@ -386,9 +399,20 @@
 
                             float prevDirNormalDot = dot(dirIn, normals[pos]);
 
-                            dir[0] = (dirIn[0] - 2.0f*prevDirNormalDot*normals[pos][0])*(1.0f - blur) + blur*randDir[0];
-                            dir[1] = (dirIn[1] - 2.0f*prevDirNormalDot*normals[pos][1])*(1.0f - blur) + blur*randDir[1];
-                            dir[2] = (dirIn[2] - 2.0f*prevDirNormalDot*normals[pos][2])*(1.0f - blur) + blur*randDir[2];
+                            float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = randBetween(seeds, 0, 1.0f);
+                                r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = randBetween(seeds, 0, 2.0f*M_PI);
+                                randSphereDir[0] = cos(r1)*cos(r2);
+                                randSphereDir[1] = cos(r1)*sin(r2);
+                                randSphereDir[2] = sin(r1);
+                            }    
+
+                            dir[0] = (dirIn[0] - 2.0f*prevDirNormalDot*normals[pos][0]) + blur*randSphereDir[0];
+                            dir[1] = (dirIn[1] - 2.0f*prevDirNormalDot*normals[pos][1]) + blur*randSphereDir[1];
+                            dir[2] = (dirIn[2] - 2.0f*prevDirNormalDot*normals[pos][2]) + blur*randSphereDir[2];
+                            norm(dir);
 
                             float cosine2 = dot(dir, normals[pos]);
 
@@ -615,18 +639,28 @@
                                                 float sinSq = RI*RI*(1.0f-cosi*cosi);
                                                 bool canRefract = 1.0f - sinSq > E;
 
+                                                float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                                                if (blur>0.0f) {
+                                                    float r1 = randBetween(seeds, 0, 1.0f);
+                                                    r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                                    float r2 = randBetween(seeds, 0, 2.0f*M_PI);
+                                                    randSphereDir[0] = cos(r1)*cos(r2);
+                                                    randSphereDir[1] = cos(r1)*sin(r2);
+                                                    randSphereDir[2] = sin(r1);
+                                                }    
+
                                                 if (!canRefract) {
-                                                    shadowDir[0] = (shadowDir[0] - 2.0f*cosi*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                                    shadowDir[1] = (shadowDir[1] - 2.0f*cosi*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                                    shadowDir[2] = (shadowDir[2] - 2.0f*cosi*refNorm[2])*(1.0f - blur) + blur*randDir[2];
+                                                    shadowDir[0] = (shadowDir[0] - 2.0f*cosi*refNorm[0]) + blur*randSphereDir[0];
+                                                    shadowDir[1] = (shadowDir[1] - 2.0f*cosi*refNorm[1]) + blur*randSphereDir[1];
+                                                    shadowDir[2] = (shadowDir[2] - 2.0f*cosi*refNorm[2]) + blur*randSphereDir[2];
                                                     norm(shadowDir);
                                                 }
                                                 else {
 
                                                     float refCalc = RI*cosi - (float)sqrt(1.0f-sinSq);
-                                                    shadowDir[0] = (RI*shadowDir[0] + refCalc*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                                    shadowDir[1] = (RI*shadowDir[1] + refCalc*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                                    shadowDir[2] = (RI*shadowDir[2] + refCalc*refNorm[2])*(1.0f - blur) + blur*randDir[2];
+                                                    shadowDir[0] = (RI*shadowDir[0] + refCalc*refNorm[0]) + blur*randSphereDir[0];
+                                                    shadowDir[1] = (RI*shadowDir[1] + refCalc*refNorm[1]) + blur*randSphereDir[1];
+                                                    shadowDir[2] = (RI*shadowDir[2] + refCalc*refNorm[2]) + blur*randSphereDir[2];
                                                     norm(shadowDir);					
                                                 }
                                                 continue;
@@ -935,6 +969,411 @@
 
     }
     
+struct skepu_userfunction_skepu_skel_1renderFunc_QMult
+{
+constexpr static size_t totalArity = 2;
+constexpr static size_t outArity = 1;
+constexpr static bool indexed = 0;
+constexpr static bool usesPRNG = 0;
+constexpr static size_t randomCount = SKEPU_NO_RANDOM;
+using IndexType = void;
+using ElwiseArgs = std::tuple<>;
+using ContainerArgs = std::tuple<>;
+using UniformArgs = std::tuple<float *, float *>;
+typedef std::tuple<> ProxyTags;
+constexpr static skepu::AccessMode anyAccessMode[] = {
+};
+
+using Ret = void;
+
+constexpr static bool prefersMatrix = 0;
+
+#define SKEPU_USING_BACKEND_CUDA 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ void CU(float * q1, float * q2)
+{
+        auto A1 = (q1[3] + q1[1]) * (q2[1] + q2[2]);
+        auto A3 = (q1[0] - q1[2]) * (q2[0] + q2[3]);
+        auto A4 = (q1[0] + q1[2]) * (q2[0] - q2[3]);
+        auto A2 = A1 + A3 + A4;
+        auto A5 = (q1[3] - q1[1]) * (q2[1] - q2[2]);
+        A5 = (A5 + A2) / 2.0f;
+
+        auto Q1 = A5 - A1 + (q1[3] - q1[2]) * (q2[2] - q2[3]);
+        auto Q2 = A5 - A2 + (q1[1] + q1[0]) * (q2[1] + q2[0]);
+        auto Q3 = A5 - A3 + (q1[0] - q1[1]) * (q2[2] + q2[3]);
+        auto Q4 = A5 - A4 + (q1[3] + q1[2]) * (q2[0] - q2[1]);
+
+        q1[0] = Q1; q1[1] = Q2; q1[2] = Q3; q1[3] = Q4;
+   
+}
+#undef SKEPU_USING_BACKEND_CUDA
+
+#define SKEPU_USING_BACKEND_OMP 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block) block
+#define VARIANT_CUDA(block)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE void OMP(float * q1, float * q2)
+{
+        auto A1 = (q1[3] + q1[1]) * (q2[1] + q2[2]);
+        auto A3 = (q1[0] - q1[2]) * (q2[0] + q2[3]);
+        auto A4 = (q1[0] + q1[2]) * (q2[0] - q2[3]);
+        auto A2 = A1 + A3 + A4;
+        auto A5 = (q1[3] - q1[1]) * (q2[1] - q2[2]);
+        A5 = (A5 + A2) / 2.0f;
+
+        auto Q1 = A5 - A1 + (q1[3] - q1[2]) * (q2[2] - q2[3]);
+        auto Q2 = A5 - A2 + (q1[1] + q1[0]) * (q2[1] + q2[0]);
+        auto Q3 = A5 - A3 + (q1[0] - q1[1]) * (q2[2] + q2[3]);
+        auto Q4 = A5 - A4 + (q1[3] + q1[2]) * (q2[0] - q2[1]);
+
+        q1[0] = Q1; q1[1] = Q2; q1[2] = Q3; q1[3] = Q4;
+   
+}
+#undef SKEPU_USING_BACKEND_OMP
+
+#define SKEPU_USING_BACKEND_CPU 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block) block
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE void CPU(float * q1, float * q2)
+{
+        auto A1 = (q1[3] + q1[1]) * (q2[1] + q2[2]);
+        auto A3 = (q1[0] - q1[2]) * (q2[0] + q2[3]);
+        auto A4 = (q1[0] + q1[2]) * (q2[0] - q2[3]);
+        auto A2 = A1 + A3 + A4;
+        auto A5 = (q1[3] - q1[1]) * (q2[1] - q2[2]);
+        A5 = (A5 + A2) / 2.0f;
+
+        auto Q1 = A5 - A1 + (q1[3] - q1[2]) * (q2[2] - q2[3]);
+        auto Q2 = A5 - A2 + (q1[1] + q1[0]) * (q2[1] + q2[0]);
+        auto Q3 = A5 - A3 + (q1[0] - q1[1]) * (q2[2] + q2[3]);
+        auto Q4 = A5 - A4 + (q1[3] + q1[2]) * (q2[0] - q2[1]);
+
+        q1[0] = Q1; q1[1] = Q2; q1[2] = Q3; q1[3] = Q4;
+   
+}
+#undef SKEPU_USING_BACKEND_CPU
+};
+
+
+struct skepu_userfunction_skepu_skel_1renderFunc_rotate
+{
+constexpr static size_t totalArity = 2;
+constexpr static size_t outArity = 1;
+constexpr static bool indexed = 0;
+constexpr static bool usesPRNG = 0;
+constexpr static size_t randomCount = SKEPU_NO_RANDOM;
+using IndexType = void;
+using ElwiseArgs = std::tuple<>;
+using ContainerArgs = std::tuple<>;
+using UniformArgs = std::tuple<float *, float *>;
+typedef std::tuple<> ProxyTags;
+constexpr static skepu::AccessMode anyAccessMode[] = {
+};
+
+using Ret = void;
+
+constexpr static bool prefersMatrix = 0;
+
+#define SKEPU_USING_BACKEND_CUDA 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ void CU(float * to_rotate, float * q)
+{
+        float p[4]  {0, to_rotate[0], to_rotate[1], to_rotate[2]};
+        float qR[4] {q[0],-q[1],-q[2],-q[3]};
+
+        skepu_userfunction_skepu_skel_1renderFunc_QMult::CU(p, q);
+        skepu_userfunction_skepu_skel_1renderFunc_QMult::CU(qR, p);
+        to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
+   
+}
+#undef SKEPU_USING_BACKEND_CUDA
+
+#define SKEPU_USING_BACKEND_OMP 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block) block
+#define VARIANT_CUDA(block)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE void OMP(float * to_rotate, float * q)
+{
+        float p[4]  {0, to_rotate[0], to_rotate[1], to_rotate[2]};
+        float qR[4] {q[0],-q[1],-q[2],-q[3]};
+
+        skepu_userfunction_skepu_skel_1renderFunc_QMult::OMP(p, q);
+        skepu_userfunction_skepu_skel_1renderFunc_QMult::OMP(qR, p);
+        to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
+   
+}
+#undef SKEPU_USING_BACKEND_OMP
+
+#define SKEPU_USING_BACKEND_CPU 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block) block
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE void CPU(float * to_rotate, float * q)
+{
+        float p[4]  {0, to_rotate[0], to_rotate[1], to_rotate[2]};
+        float qR[4] {q[0],-q[1],-q[2],-q[3]};
+
+        skepu_userfunction_skepu_skel_1renderFunc_QMult::CPU(p, q);
+        skepu_userfunction_skepu_skel_1renderFunc_QMult::CPU(qR, p);
+        to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
+   
+}
+#undef SKEPU_USING_BACKEND_CPU
+};
+
+
+struct skepu_userfunction_skepu_skel_1renderFunc_randBetween
+{
+constexpr static size_t totalArity = 3;
+constexpr static size_t outArity = 1;
+constexpr static bool indexed = 0;
+constexpr static bool usesPRNG = 0;
+constexpr static size_t randomCount = SKEPU_NO_RANDOM;
+using IndexType = void;
+using ElwiseArgs = std::tuple<>;
+using ContainerArgs = std::tuple<>;
+using UniformArgs = std::tuple<RandomSeeds &, float, float>;
+typedef std::tuple<> ProxyTags;
+constexpr static skepu::AccessMode anyAccessMode[] = {
+};
+
+using Ret = float;
+
+constexpr static bool prefersMatrix = 0;
+
+#define SKEPU_USING_BACKEND_CUDA 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(RandomSeeds & seeds, float min, float max)
+{
+        uint64_t s0 = seeds.s1;
+        uint64_t s1 = seeds.s2;
+        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
+        double one_two = ((uint64_t)1 << 63) * (double)2.0;
+        float rand = xorshiro / one_two;
+        s1 ^= s0;
+        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
+        seeds.s2 = (s1 << 28) | (s1 >> 36);
+        rand *= max - min;
+        rand += min;
+        return rand;
+   
+}
+#undef SKEPU_USING_BACKEND_CUDA
+
+#define SKEPU_USING_BACKEND_OMP 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block) block
+#define VARIANT_CUDA(block)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(RandomSeeds & seeds, float min, float max)
+{
+        uint64_t s0 = seeds.s1;
+        uint64_t s1 = seeds.s2;
+        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
+        double one_two = ((uint64_t)1 << 63) * (double)2.0;
+        float rand = xorshiro / one_two;
+        s1 ^= s0;
+        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
+        seeds.s2 = (s1 << 28) | (s1 >> 36);
+        rand *= max - min;
+        rand += min;
+        return rand;
+   
+}
+#undef SKEPU_USING_BACKEND_OMP
+
+#define SKEPU_USING_BACKEND_CPU 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block) block
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(RandomSeeds & seeds, float min, float max)
+{
+        uint64_t s0 = seeds.s1;
+        uint64_t s1 = seeds.s2;
+        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
+        double one_two = ((uint64_t)1 << 63) * (double)2.0;
+        float rand = xorshiro / one_two;
+        s1 ^= s0;
+        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
+        seeds.s2 = (s1 << 28) | (s1 >> 36);
+        rand *= max - min;
+        rand += min;
+        return rand;
+   
+}
+#undef SKEPU_USING_BACKEND_CPU
+};
+
+
+struct skepu_userfunction_skepu_skel_1renderFunc_dot
+{
+constexpr static size_t totalArity = 2;
+constexpr static size_t outArity = 1;
+constexpr static bool indexed = 0;
+constexpr static bool usesPRNG = 0;
+constexpr static size_t randomCount = SKEPU_NO_RANDOM;
+using IndexType = void;
+using ElwiseArgs = std::tuple<>;
+using ContainerArgs = std::tuple<>;
+using UniformArgs = std::tuple<float *, float *>;
+typedef std::tuple<> ProxyTags;
+constexpr static skepu::AccessMode anyAccessMode[] = {
+};
+
+using Ret = float;
+
+constexpr static bool prefersMatrix = 0;
+
+#define SKEPU_USING_BACKEND_CUDA 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(float * x, float * y)
+{
+        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+   
+}
+#undef SKEPU_USING_BACKEND_CUDA
+
+#define SKEPU_USING_BACKEND_OMP 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block) block
+#define VARIANT_CUDA(block)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(float * x, float * y)
+{
+        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+   
+}
+#undef SKEPU_USING_BACKEND_OMP
+
+#define SKEPU_USING_BACKEND_CPU 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block) block
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(float * x, float * y)
+{
+        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+   
+}
+#undef SKEPU_USING_BACKEND_CPU
+};
+
+
+struct skepu_userfunction_skepu_skel_1renderFunc_norm
+{
+constexpr static size_t totalArity = 1;
+constexpr static size_t outArity = 1;
+constexpr static bool indexed = 0;
+constexpr static bool usesPRNG = 0;
+constexpr static size_t randomCount = SKEPU_NO_RANDOM;
+using IndexType = void;
+using ElwiseArgs = std::tuple<>;
+using ContainerArgs = std::tuple<>;
+using UniformArgs = std::tuple<float *>;
+typedef std::tuple<> ProxyTags;
+constexpr static skepu::AccessMode anyAccessMode[] = {
+};
+
+using Ret = void;
+
+constexpr static bool prefersMatrix = 0;
+
+#define SKEPU_USING_BACKEND_CUDA 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ void CU(float * vec)
+{
+        auto d = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::CU(vec,vec)); 
+        vec[0]/=d; 
+        vec[1]/=d; 
+        vec[2]/=d; 
+   
+}
+#undef SKEPU_USING_BACKEND_CUDA
+
+#define SKEPU_USING_BACKEND_OMP 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block) block
+#define VARIANT_CUDA(block)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE void OMP(float * vec)
+{
+        auto d = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(vec,vec)); 
+        vec[0]/=d; 
+        vec[1]/=d; 
+        vec[2]/=d; 
+   
+}
+#undef SKEPU_USING_BACKEND_OMP
+
+#define SKEPU_USING_BACKEND_CPU 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block) block
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE void CPU(float * vec)
+{
+        auto d = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(vec,vec)); 
+        vec[0]/=d; 
+        vec[1]/=d; 
+        vec[2]/=d; 
+   
+}
+#undef SKEPU_USING_BACKEND_CPU
+};
+
+
 struct skepu_userfunction_skepu_skel_1renderFunc_RenderFunc
 {
 constexpr static size_t totalArity = 3;
@@ -967,54 +1406,11 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
         float camPos[3] = { sConstants.camPos[0],  sConstants.camPos[1],  sConstants.camPos[2]};
         float rayPos[3] = {camPos[0], camPos[1], camPos[2]};
 
-        // Lambda Functions
-            auto dot  = [=](float vec1[3], float vec2[3]) {return vec1[0]*vec2[0] + vec1[1]*vec2[1] + vec1[2]*vec2[2];};
-            auto norm = [&](float vec[3]) {auto d = sqrt(dot(vec,vec)); vec[0]/=d; vec[1]/=d; vec[2]/=d; };
-            auto randBetween = [](RandomSeeds& seeds, float min, float max) {
-                uint64_t s0 = seeds.s1;
-                uint64_t s1 = seeds.s2;
-                uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-                double one_two = ((uint64_t)1 << 63) * (double)2.0;
-                float rand = xorshiro / one_two;
-                s1 ^= s0;
-                seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
-                seeds.s2 = (s1 << 28) | (s1 >> 36);
-
-                rand *= max - min;
-                rand += min;
-                return rand;
-            };
-            auto QMult = [&](float q1[4], float q2[4] ) {
-                auto A1 = (q1[3] + q1[1]) * (q2[1] + q2[2]);
-                auto A3 = (q1[0] - q1[2]) * (q2[0] + q2[3]);
-                auto A4 = (q1[0] + q1[2]) * (q2[0] - q2[3]);
-                auto A2 = A1 + A3 + A4;
-                auto A5 = (q1[3] - q1[1]) * (q2[1] - q2[2]);
-                A5 = (A5 + A2) / 2.0f;
-
-                auto Q1 = A5 - A1 + (q1[3] - q1[2]) * (q2[2] - q2[3]);
-                auto Q2 = A5 - A2 + (q1[1] + q1[0]) * (q2[1] + q2[0]);
-                auto Q3 = A5 - A3 + (q1[0] - q1[1]) * (q2[2] + q2[3]);
-                auto Q4 = A5 - A4 + (q1[3] + q1[2]) * (q2[0] - q2[1]);
-
-                q1[0] = Q1; q1[1] = Q2; q1[2] = Q3; q1[3] = Q4;
-            };
-            auto rotate = [&](float to_rotate[3], float q[4]) {
-
-                float p[4]  {0, to_rotate[0], to_rotate[1], to_rotate[2]};
-                float qR[4] {q[0],-q[1],-q[2],-q[3]};
-
-                QMult(p, q);
-                QMult(qR, p);
-                to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
-            };
-        // Lambda Functions
-
         // Rand Samp
         float rSamps[2] = {0.0f, 0.0f};
         if (sConstants.randSamp>0.001f) {
-            rSamps[0] = randBetween( seeds, -1, 1) * sConstants.randSamp;
-            rSamps[1] = randBetween( seeds, -1, 1) * sConstants.randSamp;
+            rSamps[0] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU( seeds, -1, 1) * sConstants.randSamp;
+            rSamps[1] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU( seeds, -1, 1) * sConstants.randSamp;
         }
 
         float back_col[3] = { 0,0,0};
@@ -1032,7 +1428,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
         pix[2] = camPos[2] +  sConstants.camForward[2]* sConstants.focalLength +  sConstants.camRight[2]*(pX+rSamps[0]) +  sConstants.camUp[2]*(pY+rSamps[1]);
 
         float rayDir[3] = {pix[0]-camPos[0], pix[1]-camPos[1], pix[2]-camPos[2]};
-        norm(rayDir);
+        skepu_userfunction_skepu_skel_1renderFunc_norm::CU(rayDir);
  
         // Store ray collisions and reverse through them (last num is shape index)
         float rayPositions[12][4];
@@ -1088,9 +1484,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                             float rPos[3] = {prevPos[0]-boxPos[0], prevPos[1]-boxPos[1], prevPos[2]-boxPos[2]};
                             float rot[4] = {sConstants.objAttributes[aInd + 9], sConstants.objAttributes[aInd + 10], sConstants.objAttributes[aInd + 11], sConstants.objAttributes[aInd + 12]};
                             if (rot[1] + rot[2] + rot[3] > E) {
-                                rotate(rDir,rot);
-                                norm(rDir); 
-                                rotate(rPos,rot);
+                                skepu_userfunction_skepu_skel_1renderFunc_rotate::CU(rDir,rot);
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::CU(rDir); 
+                                skepu_userfunction_skepu_skel_1renderFunc_rotate::CU(rPos,rot);
                             }
                             rPos[0]+=boxPos[0];rPos[1]+=boxPos[1];rPos[2]+=boxPos[2];
 
@@ -1140,10 +1536,10 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                             L[0] =  sConstants.objAttributes[aInd + 0] - prevPos[0];
                             L[1] =  sConstants.objAttributes[aInd + 1] - prevPos[1];
                             L[2] =  sConstants.objAttributes[aInd + 2] - prevPos[2];
-                            float tca = dot(L, dir);
+                            float tca = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(L, dir);
                             if (tca < E)
                                 continue;
-                            float dsq = dot(L,L) - tca * tca;
+                            float dsq = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(L,L) - tca * tca;
                             float radiusSq =  sConstants.objAttributes[aInd + 3] *  sConstants.objAttributes[aInd + 3];
                             if (radiusSq - dsq < E)
                                 continue;
@@ -1214,14 +1610,14 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
 
                             // Transform Normal
                             float rot[4] = {sConstants.objAttributes[attrInd + 9], -sConstants.objAttributes[attrInd + 10], -sConstants.objAttributes[attrInd + 11], -sConstants.objAttributes[attrInd + 12]};
-                            rotate(normals[pos], rot);
-                            norm(normals[pos]);
+                            skepu_userfunction_skepu_skel_1renderFunc_rotate::CU(normals[pos], rot);
+                            skepu_userfunction_skepu_skel_1renderFunc_norm::CU(normals[pos]);
                         }
                         else if (shapeTypeHit == 0) {
                             normals[pos][0] = posHit[0] -  sConstants.objAttributes[attrInd + 0];
                             normals[pos][1] = posHit[1] -  sConstants.objAttributes[attrInd + 1];
                             normals[pos][2] = posHit[2] -  sConstants.objAttributes[attrInd + 2];
-                            norm(normals[pos]);
+                            skepu_userfunction_skepu_skel_1renderFunc_norm::CU(normals[pos]);
                         }
                     }
                 
@@ -1234,7 +1630,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                             {
                                 // Rand vals
                                 for (int n = 0; n < 5; n++) 
-                                    rands[n] = randBetween( seeds, 0,1);
+                                    rands[n] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU( seeds, 0,1);
 
                                 float axis[3][3] = {{0,0,0}, {0,0,0}, {0,0,0}};
                                 // 2
@@ -1253,7 +1649,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                     axis[1][1] =  axis[2][2];
                                     axis[1][2] = -axis[2][1];
                                 }
-                                norm(axis[1]);
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::CU(axis[1]);
                                 // 0
                                 // axis[0] = cross(axis[2], axis[1])
                                 axis[0][0] = axis[2][1]*axis[1][2] - axis[2][2]*axis[1][1];
@@ -1291,7 +1687,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                             float RI = 1.0f /  sConstants.matList[matInd][4];
                             float dirIn[3] = {dir[0], dir[1], dir[2]};
                             float refNorm[3] = {normals[pos][0], normals[pos][1], normals[pos][2]};
-                            float cosi = dot(dirIn, refNorm);
+                            float cosi = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(dirIn, refNorm);
 
                             // If normal is same direction as ray, then flip
                             if (cosi > 0) {
@@ -1311,28 +1707,38 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                             r0 = r0 * r0;
                             float schlick = r0 + (1.0f - r0) * (float)pow((1.0f - cosi), 5.0f);
 
-                            float schlickRand = randBetween(seeds, 0, 1);
+                            float schlickRand = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU(seeds, 0, 1);
+
+                            float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU(seeds, 0, 1.0f);
+                                r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU(seeds, 0, 2.0f*M_PI);
+                                randSphereDir[0] = cos(r1)*cos(r2);
+                                randSphereDir[1] = cos(r1)*sin(r2);
+                                randSphereDir[2] = sin(r1);
+                            }    
 
                             if (!canRefract || schlick > schlickRand) {
-                                dir[0] = (dirIn[0] - 2.0f*cosi*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                dir[1] = (dirIn[1] - 2.0f*cosi*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                dir[2] = (dirIn[2] - 2.0f*cosi*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                norm(dir);
+                                dir[0] = (dirIn[0] - 2.0f*cosi*refNorm[0]) + blur*randSphereDir[0];
+                                dir[1] = (dirIn[1] - 2.0f*cosi*refNorm[1]) + blur*randSphereDir[1];
+                                dir[2] = (dirIn[2] - 2.0f*cosi*refNorm[2]) + blur*randSphereDir[2];
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::CU(dir);
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
-                                float cosine2 = dot(normals[pos], dir);
+                                float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(normals[pos], dir);
                                 pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;
                             }
                             else {
 
                                 float refCalc = RI*cosi - (float)sqrt(1.0f-sinSq);
-                                dir[0] = (RI*dirIn[0] + refCalc*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                dir[1] = (RI*dirIn[1] + refCalc*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                dir[2] = (RI*dirIn[2] + refCalc*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                norm(dir);
+                                dir[0] = (RI*dirIn[0] + refCalc*refNorm[0]) + blur*randSphereDir[0];
+                                dir[1] = (RI*dirIn[1] + refCalc*refNorm[1]) + blur*randSphereDir[1];
+                                dir[2] = (RI*dirIn[2] + refCalc*refNorm[2]) + blur*randSphereDir[2];
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::CU(dir);
 
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
                                 // Danger here, scattering pdf was going to 0 for refracting and making colour explode
-                                float cosine2 = dot(normals[pos], dir);
+                                float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(normals[pos], dir);
                                 pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;					
                             }
                         }
@@ -1343,13 +1749,24 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                             float dirIn[3] = {dir[0], dir[1], dir[2]};
                             float blur =  sConstants.matList[matInd][3];
 
-                            float prevDirNormalDot = dot(dirIn, normals[pos]);
+                            float prevDirNormalDot = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(dirIn, normals[pos]);
 
-                            dir[0] = (dirIn[0] - 2.0f*prevDirNormalDot*normals[pos][0])*(1.0f - blur) + blur*randDir[0];
-                            dir[1] = (dirIn[1] - 2.0f*prevDirNormalDot*normals[pos][1])*(1.0f - blur) + blur*randDir[1];
-                            dir[2] = (dirIn[2] - 2.0f*prevDirNormalDot*normals[pos][2])*(1.0f - blur) + blur*randDir[2];
+                            float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU(seeds, 0, 1.0f);
+                                r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU(seeds, 0, 2.0f*M_PI);
+                                randSphereDir[0] = cos(r1)*cos(r2);
+                                randSphereDir[1] = cos(r1)*sin(r2);
+                                randSphereDir[2] = sin(r1);
+                            }    
 
-                            float cosine2 = dot(dir, normals[pos]);
+                            dir[0] = (dirIn[0] - 2.0f*prevDirNormalDot*normals[pos][0]) + blur*randSphereDir[0];
+                            dir[1] = (dirIn[1] - 2.0f*prevDirNormalDot*normals[pos][1]) + blur*randSphereDir[1];
+                            dir[2] = (dirIn[2] - 2.0f*prevDirNormalDot*normals[pos][2]) + blur*randSphereDir[2];
+                            skepu_userfunction_skepu_skel_1renderFunc_norm::CU(dir);
+
+                            float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(dir, normals[pos]);
 
                             // Same as scattering pdf, to make pdf 1, as it is specular
                             pdfVals[pos] = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;
@@ -1397,7 +1814,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                         // Gen three new random variables : [0, 1]
                                         float aabbRands[3];
                                         for (int n = 0; n < 3; n++) 
-                                            aabbRands[n] = randBetween( seeds, 0,1);
+                                            aabbRands[n] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU( seeds, 0,1);
                                         randPos[0] = (1.0f - aabbRands[0])* sConstants.objAttributes[impAttrInd+3] + aabbRands[0]* sConstants.objAttributes[impAttrInd+6];
                                         randPos[1] = (1.0f - aabbRands[1])* sConstants.objAttributes[impAttrInd+4] + aabbRands[1]* sConstants.objAttributes[impAttrInd+7];
                                         randPos[2] = (1.0f - aabbRands[2])* sConstants.objAttributes[impAttrInd+5] + aabbRands[2]* sConstants.objAttributes[impAttrInd+8];	
@@ -1405,10 +1822,10 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                     else if ( sConstants.shapes[impShape][0] == 0) {
                                         // Gen three new random variables : [-1, 1]
                                         float sphereRands[3];
-                                        sphereRands[0] = randBetween( seeds, -1,1);
-                                        sphereRands[1] = randBetween( seeds, -1,1);
-                                        sphereRands[2] = randBetween( seeds, -1,1);
-                                        norm(sphereRands);
+                                        sphereRands[0] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU( seeds, -1,1);
+                                        sphereRands[1] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU( seeds, -1,1);
+                                        sphereRands[2] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU( seeds, -1,1);
+                                        skepu_userfunction_skepu_skel_1renderFunc_norm::CU(sphereRands);
                                         
                                         randPos[0] =  sConstants.objAttributes[impAttrInd+0] + sphereRands[0]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[1] =  sConstants.objAttributes[impAttrInd+1] + sphereRands[1]* sConstants.objAttributes[impAttrInd+3];
@@ -1419,7 +1836,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                     directDir[0] = randPos[0] - posHit[0];
                                     directDir[1] = randPos[1] - posHit[1];
                                     directDir[2] = randPos[2] - posHit[2];
-                                    float dirLen = sqrt(dot(directDir, directDir));
+                                    float dirLen = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::CU(directDir, directDir));
                                     directDir[0] /= dirLen; directDir[1] /= dirLen; directDir[2] /= dirLen;  
 
                                     //
@@ -1444,9 +1861,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                             float rPos[3] = {posHit[0]-boxPos[0], posHit[1]-boxPos[1], posHit[2]-boxPos[2]};
                                             float rot[4] = {sConstants.objAttributes[aInd + 9], sConstants.objAttributes[aInd + 10], sConstants.objAttributes[aInd + 11], sConstants.objAttributes[aInd + 12]};
                                             if (rot[1] + rot[2] + rot[3] > E) {
-                                                rotate(rDir,rot);
-                                                norm(rDir); 
-                                                rotate(rPos,rot);
+                                                skepu_userfunction_skepu_skel_1renderFunc_rotate::CU(rDir,rot);
+                                                skepu_userfunction_skepu_skel_1renderFunc_norm::CU(rDir); 
+                                                skepu_userfunction_skepu_skel_1renderFunc_rotate::CU(rPos,rot);
                                             }
                                             rPos[0]+=boxPos[0];rPos[1]+=boxPos[1];rPos[2]+=boxPos[2];
 
@@ -1494,7 +1911,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                             float tca = L[0]*shadowDir[0] + L[1]*shadowDir[1] + L[2]*shadowDir[2];
                                             if (tca < E)
                                                 continue;
-                                            float dsq = dot(L,L) - tca * tca;
+                                            float dsq = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(L,L) - tca * tca;
                                             float radiusSq =  sConstants.objAttributes[aInd+3] *  sConstants.objAttributes[aInd+3];
                                             if (radiusSq - dsq < E)
                                                 continue;
@@ -1547,8 +1964,8 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
 
                                                     // Transform Normal
                                                     float rot[4] = {sConstants.objAttributes[attrInd + 9], -sConstants.objAttributes[attrInd + 10], -sConstants.objAttributes[attrInd + 11], -sConstants.objAttributes[attrInd + 12]};
-                                                    rotate(refNorm, rot);
-                                                    norm(refNorm);
+                                                    skepu_userfunction_skepu_skel_1renderFunc_rotate::CU(refNorm, rot);
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::CU(refNorm);
                                                 }
                                                 else if (shapeTypeHit == 0) {
                                                     float sPosHit[3];
@@ -1558,9 +1975,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                                     refNorm[0] = sPosHit[0] -  sConstants.objAttributes[attrInd + 0];
                                                     refNorm[1] = sPosHit[1] -  sConstants.objAttributes[attrInd + 1];
                                                     refNorm[2] = sPosHit[2] -  sConstants.objAttributes[attrInd + 2];
-                                                    norm(refNorm);
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::CU(refNorm);
                                                 } 
-                                                float cosi = dot(shadowDir, refNorm);
+                                                float cosi = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(shadowDir, refNorm);
                                                 // If normal is same direction as ray, then flip
                                                 if (cosi > 0) {
                                                     refNorm[0]*=-1.0f;refNorm[1]*=-1.0f;refNorm[2]*=-1.0f;
@@ -1574,19 +1991,29 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                                 float sinSq = RI*RI*(1.0f-cosi*cosi);
                                                 bool canRefract = 1.0f - sinSq > E;
 
+                                                float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                                                if (blur>0.0f) {
+                                                    float r1 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU(seeds, 0, 1.0f);
+                                                    r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                                    float r2 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CU(seeds, 0, 2.0f*M_PI);
+                                                    randSphereDir[0] = cos(r1)*cos(r2);
+                                                    randSphereDir[1] = cos(r1)*sin(r2);
+                                                    randSphereDir[2] = sin(r1);
+                                                }    
+
                                                 if (!canRefract) {
-                                                    shadowDir[0] = (shadowDir[0] - 2.0f*cosi*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                                    shadowDir[1] = (shadowDir[1] - 2.0f*cosi*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                                    shadowDir[2] = (shadowDir[2] - 2.0f*cosi*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                                    norm(shadowDir);
+                                                    shadowDir[0] = (shadowDir[0] - 2.0f*cosi*refNorm[0]) + blur*randSphereDir[0];
+                                                    shadowDir[1] = (shadowDir[1] - 2.0f*cosi*refNorm[1]) + blur*randSphereDir[1];
+                                                    shadowDir[2] = (shadowDir[2] - 2.0f*cosi*refNorm[2]) + blur*randSphereDir[2];
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::CU(shadowDir);
                                                 }
                                                 else {
 
                                                     float refCalc = RI*cosi - (float)sqrt(1.0f-sinSq);
-                                                    shadowDir[0] = (RI*shadowDir[0] + refCalc*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                                    shadowDir[1] = (RI*shadowDir[1] + refCalc*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                                    shadowDir[2] = (RI*shadowDir[2] + refCalc*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                                    norm(shadowDir);					
+                                                    shadowDir[0] = (RI*shadowDir[0] + refCalc*refNorm[0]) + blur*randSphereDir[0];
+                                                    shadowDir[1] = (RI*shadowDir[1] + refCalc*refNorm[1]) + blur*randSphereDir[1];
+                                                    shadowDir[2] = (RI*shadowDir[2] + refCalc*refNorm[2]) + blur*randSphereDir[2];
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::CU(shadowDir);					
                                                 }
                                                 continue;
                                             }                                           
@@ -1596,7 +2023,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                     }
 
                                     if (!shadowRayHit) {
-                                        float cosine = fabs(dot(directDir, randDir));
+                                        float cosine = fabs(skepu_userfunction_skepu_skel_1renderFunc_dot::CU(directDir, randDir));
                                         if (cosine > 0.01f) {
                                             shadowRays[pos]=1; 
                                             dir[0] = directDir[0];
@@ -1623,14 +2050,14 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                     areaSum += xDiff * yDiff * 2.0f;
                                     areaSum += zDiff * yDiff * 2.0f;
                                     areaSum += xDiff * zDiff * 2.0f;
-                                    float cosine = dot(dir, normals[pos]);
+                                    float cosine = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(dir, normals[pos]);
                                     cosine = cosine < 0.0001f ? 0.0001f : cosine;
 
                                     float diff[3];
                                     diff[0] =  sConstants.objAttributes[impAttrInd+0] - posHit[0];
                                     diff[1] =  sConstants.objAttributes[impAttrInd+1] - posHit[1];
                                     diff[2] =  sConstants.objAttributes[impAttrInd+2] - posHit[2];
-                                    float dirLen = sqrt(dot(diff, diff));
+                                    float dirLen = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::CU(diff, diff));
 
 
                                     // AABB needs magic number for pdf calc, TODO: LOOK INTO, was too bright before
@@ -1642,7 +2069,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
                                     float diff[3] = { sConstants.objAttributes[impAttrInd+0]-posHit[0], 
                                                       sConstants.objAttributes[impAttrInd+1]-posHit[1], 
                                                       sConstants.objAttributes[impAttrInd+2]-posHit[2]};
-                                    auto distance_squared = dot(diff, diff);
+                                    auto distance_squared = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(diff, diff);
                                     auto cos_theta_max = sqrt(1.0f -  sConstants.objAttributes[impAttrInd+3] *  sConstants.objAttributes[impAttrInd+3] / distance_squared);
                                     // NaN check
                                     cos_theta_max = (cos_theta_max != cos_theta_max) ? 0.9999f : cos_theta_max;
@@ -1695,7 +2122,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
             newDir[1] = pos == numShapeHit-1 ? dir[1] : rayPositions[pos + 1][1] - rayPositions[pos][1];
             newDir[2] = pos == numShapeHit-1 ? dir[2] : rayPositions[pos + 1][2] - rayPositions[pos][2];
             if (pos < numShapeHit-1) {
-                norm(newDir);
+                skepu_userfunction_skepu_skel_1renderFunc_norm::CU(newDir);
             }
 
             float emittance[3];
@@ -1705,7 +2132,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ ReturnStruct CU(skepu::Ind
 
             float pdf_val = pdfVals[pos]; 
 
-            float cosine2 = dot(normal, newDir);
+            float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::CU(normal, newDir);
 
             float scattering_pdf = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;// just cosine/pi for lambertian
             float multVecs[3] = {albedo[0]*finalCol[0],   // albedo*incoming 
@@ -1761,54 +2188,11 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
         float camPos[3] = { sConstants.camPos[0],  sConstants.camPos[1],  sConstants.camPos[2]};
         float rayPos[3] = {camPos[0], camPos[1], camPos[2]};
 
-        // Lambda Functions
-            auto dot  = [=](float vec1[3], float vec2[3]) {return vec1[0]*vec2[0] + vec1[1]*vec2[1] + vec1[2]*vec2[2];};
-            auto norm = [&](float vec[3]) {auto d = sqrt(dot(vec,vec)); vec[0]/=d; vec[1]/=d; vec[2]/=d; };
-            auto randBetween = [](RandomSeeds& seeds, float min, float max) {
-                uint64_t s0 = seeds.s1;
-                uint64_t s1 = seeds.s2;
-                uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-                double one_two = ((uint64_t)1 << 63) * (double)2.0;
-                float rand = xorshiro / one_two;
-                s1 ^= s0;
-                seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
-                seeds.s2 = (s1 << 28) | (s1 >> 36);
-
-                rand *= max - min;
-                rand += min;
-                return rand;
-            };
-            auto QMult = [&](float q1[4], float q2[4] ) {
-                auto A1 = (q1[3] + q1[1]) * (q2[1] + q2[2]);
-                auto A3 = (q1[0] - q1[2]) * (q2[0] + q2[3]);
-                auto A4 = (q1[0] + q1[2]) * (q2[0] - q2[3]);
-                auto A2 = A1 + A3 + A4;
-                auto A5 = (q1[3] - q1[1]) * (q2[1] - q2[2]);
-                A5 = (A5 + A2) / 2.0f;
-
-                auto Q1 = A5 - A1 + (q1[3] - q1[2]) * (q2[2] - q2[3]);
-                auto Q2 = A5 - A2 + (q1[1] + q1[0]) * (q2[1] + q2[0]);
-                auto Q3 = A5 - A3 + (q1[0] - q1[1]) * (q2[2] + q2[3]);
-                auto Q4 = A5 - A4 + (q1[3] + q1[2]) * (q2[0] - q2[1]);
-
-                q1[0] = Q1; q1[1] = Q2; q1[2] = Q3; q1[3] = Q4;
-            };
-            auto rotate = [&](float to_rotate[3], float q[4]) {
-
-                float p[4]  {0, to_rotate[0], to_rotate[1], to_rotate[2]};
-                float qR[4] {q[0],-q[1],-q[2],-q[3]};
-
-                QMult(p, q);
-                QMult(qR, p);
-                to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
-            };
-        // Lambda Functions
-
         // Rand Samp
         float rSamps[2] = {0.0f, 0.0f};
         if (sConstants.randSamp>0.001f) {
-            rSamps[0] = randBetween( seeds, -1, 1) * sConstants.randSamp;
-            rSamps[1] = randBetween( seeds, -1, 1) * sConstants.randSamp;
+            rSamps[0] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP( seeds, -1, 1) * sConstants.randSamp;
+            rSamps[1] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP( seeds, -1, 1) * sConstants.randSamp;
         }
 
         float back_col[3] = { 0,0,0};
@@ -1826,7 +2210,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
         pix[2] = camPos[2] +  sConstants.camForward[2]* sConstants.focalLength +  sConstants.camRight[2]*(pX+rSamps[0]) +  sConstants.camUp[2]*(pY+rSamps[1]);
 
         float rayDir[3] = {pix[0]-camPos[0], pix[1]-camPos[1], pix[2]-camPos[2]};
-        norm(rayDir);
+        skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(rayDir);
  
         // Store ray collisions and reverse through them (last num is shape index)
         float rayPositions[12][4];
@@ -1882,9 +2266,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                             float rPos[3] = {prevPos[0]-boxPos[0], prevPos[1]-boxPos[1], prevPos[2]-boxPos[2]};
                             float rot[4] = {sConstants.objAttributes[aInd + 9], sConstants.objAttributes[aInd + 10], sConstants.objAttributes[aInd + 11], sConstants.objAttributes[aInd + 12]};
                             if (rot[1] + rot[2] + rot[3] > E) {
-                                rotate(rDir,rot);
-                                norm(rDir); 
-                                rotate(rPos,rot);
+                                skepu_userfunction_skepu_skel_1renderFunc_rotate::OMP(rDir,rot);
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(rDir); 
+                                skepu_userfunction_skepu_skel_1renderFunc_rotate::OMP(rPos,rot);
                             }
                             rPos[0]+=boxPos[0];rPos[1]+=boxPos[1];rPos[2]+=boxPos[2];
 
@@ -1934,10 +2318,10 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                             L[0] =  sConstants.objAttributes[aInd + 0] - prevPos[0];
                             L[1] =  sConstants.objAttributes[aInd + 1] - prevPos[1];
                             L[2] =  sConstants.objAttributes[aInd + 2] - prevPos[2];
-                            float tca = dot(L, dir);
+                            float tca = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(L, dir);
                             if (tca < E)
                                 continue;
-                            float dsq = dot(L,L) - tca * tca;
+                            float dsq = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(L,L) - tca * tca;
                             float radiusSq =  sConstants.objAttributes[aInd + 3] *  sConstants.objAttributes[aInd + 3];
                             if (radiusSq - dsq < E)
                                 continue;
@@ -2008,14 +2392,14 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
 
                             // Transform Normal
                             float rot[4] = {sConstants.objAttributes[attrInd + 9], -sConstants.objAttributes[attrInd + 10], -sConstants.objAttributes[attrInd + 11], -sConstants.objAttributes[attrInd + 12]};
-                            rotate(normals[pos], rot);
-                            norm(normals[pos]);
+                            skepu_userfunction_skepu_skel_1renderFunc_rotate::OMP(normals[pos], rot);
+                            skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(normals[pos]);
                         }
                         else if (shapeTypeHit == 0) {
                             normals[pos][0] = posHit[0] -  sConstants.objAttributes[attrInd + 0];
                             normals[pos][1] = posHit[1] -  sConstants.objAttributes[attrInd + 1];
                             normals[pos][2] = posHit[2] -  sConstants.objAttributes[attrInd + 2];
-                            norm(normals[pos]);
+                            skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(normals[pos]);
                         }
                     }
                 
@@ -2028,7 +2412,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                             {
                                 // Rand vals
                                 for (int n = 0; n < 5; n++) 
-                                    rands[n] = randBetween( seeds, 0,1);
+                                    rands[n] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP( seeds, 0,1);
 
                                 float axis[3][3] = {{0,0,0}, {0,0,0}, {0,0,0}};
                                 // 2
@@ -2047,7 +2431,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                     axis[1][1] =  axis[2][2];
                                     axis[1][2] = -axis[2][1];
                                 }
-                                norm(axis[1]);
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(axis[1]);
                                 // 0
                                 // axis[0] = cross(axis[2], axis[1])
                                 axis[0][0] = axis[2][1]*axis[1][2] - axis[2][2]*axis[1][1];
@@ -2085,7 +2469,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                             float RI = 1.0f /  sConstants.matList[matInd][4];
                             float dirIn[3] = {dir[0], dir[1], dir[2]};
                             float refNorm[3] = {normals[pos][0], normals[pos][1], normals[pos][2]};
-                            float cosi = dot(dirIn, refNorm);
+                            float cosi = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(dirIn, refNorm);
 
                             // If normal is same direction as ray, then flip
                             if (cosi > 0) {
@@ -2105,28 +2489,38 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                             r0 = r0 * r0;
                             float schlick = r0 + (1.0f - r0) * (float)pow((1.0f - cosi), 5.0f);
 
-                            float schlickRand = randBetween(seeds, 0, 1);
+                            float schlickRand = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP(seeds, 0, 1);
+
+                            float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP(seeds, 0, 1.0f);
+                                r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP(seeds, 0, 2.0f*M_PI);
+                                randSphereDir[0] = cos(r1)*cos(r2);
+                                randSphereDir[1] = cos(r1)*sin(r2);
+                                randSphereDir[2] = sin(r1);
+                            }    
 
                             if (!canRefract || schlick > schlickRand) {
-                                dir[0] = (dirIn[0] - 2.0f*cosi*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                dir[1] = (dirIn[1] - 2.0f*cosi*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                dir[2] = (dirIn[2] - 2.0f*cosi*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                norm(dir);
+                                dir[0] = (dirIn[0] - 2.0f*cosi*refNorm[0]) + blur*randSphereDir[0];
+                                dir[1] = (dirIn[1] - 2.0f*cosi*refNorm[1]) + blur*randSphereDir[1];
+                                dir[2] = (dirIn[2] - 2.0f*cosi*refNorm[2]) + blur*randSphereDir[2];
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(dir);
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
-                                float cosine2 = dot(normals[pos], dir);
+                                float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(normals[pos], dir);
                                 pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;
                             }
                             else {
 
                                 float refCalc = RI*cosi - (float)sqrt(1.0f-sinSq);
-                                dir[0] = (RI*dirIn[0] + refCalc*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                dir[1] = (RI*dirIn[1] + refCalc*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                dir[2] = (RI*dirIn[2] + refCalc*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                norm(dir);
+                                dir[0] = (RI*dirIn[0] + refCalc*refNorm[0]) + blur*randSphereDir[0];
+                                dir[1] = (RI*dirIn[1] + refCalc*refNorm[1]) + blur*randSphereDir[1];
+                                dir[2] = (RI*dirIn[2] + refCalc*refNorm[2]) + blur*randSphereDir[2];
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(dir);
 
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
                                 // Danger here, scattering pdf was going to 0 for refracting and making colour explode
-                                float cosine2 = dot(normals[pos], dir);
+                                float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(normals[pos], dir);
                                 pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;					
                             }
                         }
@@ -2137,13 +2531,24 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                             float dirIn[3] = {dir[0], dir[1], dir[2]};
                             float blur =  sConstants.matList[matInd][3];
 
-                            float prevDirNormalDot = dot(dirIn, normals[pos]);
+                            float prevDirNormalDot = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(dirIn, normals[pos]);
 
-                            dir[0] = (dirIn[0] - 2.0f*prevDirNormalDot*normals[pos][0])*(1.0f - blur) + blur*randDir[0];
-                            dir[1] = (dirIn[1] - 2.0f*prevDirNormalDot*normals[pos][1])*(1.0f - blur) + blur*randDir[1];
-                            dir[2] = (dirIn[2] - 2.0f*prevDirNormalDot*normals[pos][2])*(1.0f - blur) + blur*randDir[2];
+                            float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP(seeds, 0, 1.0f);
+                                r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP(seeds, 0, 2.0f*M_PI);
+                                randSphereDir[0] = cos(r1)*cos(r2);
+                                randSphereDir[1] = cos(r1)*sin(r2);
+                                randSphereDir[2] = sin(r1);
+                            }    
 
-                            float cosine2 = dot(dir, normals[pos]);
+                            dir[0] = (dirIn[0] - 2.0f*prevDirNormalDot*normals[pos][0]) + blur*randSphereDir[0];
+                            dir[1] = (dirIn[1] - 2.0f*prevDirNormalDot*normals[pos][1]) + blur*randSphereDir[1];
+                            dir[2] = (dirIn[2] - 2.0f*prevDirNormalDot*normals[pos][2]) + blur*randSphereDir[2];
+                            skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(dir);
+
+                            float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(dir, normals[pos]);
 
                             // Same as scattering pdf, to make pdf 1, as it is specular
                             pdfVals[pos] = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;
@@ -2191,7 +2596,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                         // Gen three new random variables : [0, 1]
                                         float aabbRands[3];
                                         for (int n = 0; n < 3; n++) 
-                                            aabbRands[n] = randBetween( seeds, 0,1);
+                                            aabbRands[n] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP( seeds, 0,1);
                                         randPos[0] = (1.0f - aabbRands[0])* sConstants.objAttributes[impAttrInd+3] + aabbRands[0]* sConstants.objAttributes[impAttrInd+6];
                                         randPos[1] = (1.0f - aabbRands[1])* sConstants.objAttributes[impAttrInd+4] + aabbRands[1]* sConstants.objAttributes[impAttrInd+7];
                                         randPos[2] = (1.0f - aabbRands[2])* sConstants.objAttributes[impAttrInd+5] + aabbRands[2]* sConstants.objAttributes[impAttrInd+8];	
@@ -2199,10 +2604,10 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                     else if ( sConstants.shapes[impShape][0] == 0) {
                                         // Gen three new random variables : [-1, 1]
                                         float sphereRands[3];
-                                        sphereRands[0] = randBetween( seeds, -1,1);
-                                        sphereRands[1] = randBetween( seeds, -1,1);
-                                        sphereRands[2] = randBetween( seeds, -1,1);
-                                        norm(sphereRands);
+                                        sphereRands[0] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP( seeds, -1,1);
+                                        sphereRands[1] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP( seeds, -1,1);
+                                        sphereRands[2] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP( seeds, -1,1);
+                                        skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(sphereRands);
                                         
                                         randPos[0] =  sConstants.objAttributes[impAttrInd+0] + sphereRands[0]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[1] =  sConstants.objAttributes[impAttrInd+1] + sphereRands[1]* sConstants.objAttributes[impAttrInd+3];
@@ -2213,7 +2618,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                     directDir[0] = randPos[0] - posHit[0];
                                     directDir[1] = randPos[1] - posHit[1];
                                     directDir[2] = randPos[2] - posHit[2];
-                                    float dirLen = sqrt(dot(directDir, directDir));
+                                    float dirLen = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(directDir, directDir));
                                     directDir[0] /= dirLen; directDir[1] /= dirLen; directDir[2] /= dirLen;  
 
                                     //
@@ -2238,9 +2643,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                             float rPos[3] = {posHit[0]-boxPos[0], posHit[1]-boxPos[1], posHit[2]-boxPos[2]};
                                             float rot[4] = {sConstants.objAttributes[aInd + 9], sConstants.objAttributes[aInd + 10], sConstants.objAttributes[aInd + 11], sConstants.objAttributes[aInd + 12]};
                                             if (rot[1] + rot[2] + rot[3] > E) {
-                                                rotate(rDir,rot);
-                                                norm(rDir); 
-                                                rotate(rPos,rot);
+                                                skepu_userfunction_skepu_skel_1renderFunc_rotate::OMP(rDir,rot);
+                                                skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(rDir); 
+                                                skepu_userfunction_skepu_skel_1renderFunc_rotate::OMP(rPos,rot);
                                             }
                                             rPos[0]+=boxPos[0];rPos[1]+=boxPos[1];rPos[2]+=boxPos[2];
 
@@ -2288,7 +2693,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                             float tca = L[0]*shadowDir[0] + L[1]*shadowDir[1] + L[2]*shadowDir[2];
                                             if (tca < E)
                                                 continue;
-                                            float dsq = dot(L,L) - tca * tca;
+                                            float dsq = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(L,L) - tca * tca;
                                             float radiusSq =  sConstants.objAttributes[aInd+3] *  sConstants.objAttributes[aInd+3];
                                             if (radiusSq - dsq < E)
                                                 continue;
@@ -2341,8 +2746,8 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
 
                                                     // Transform Normal
                                                     float rot[4] = {sConstants.objAttributes[attrInd + 9], -sConstants.objAttributes[attrInd + 10], -sConstants.objAttributes[attrInd + 11], -sConstants.objAttributes[attrInd + 12]};
-                                                    rotate(refNorm, rot);
-                                                    norm(refNorm);
+                                                    skepu_userfunction_skepu_skel_1renderFunc_rotate::OMP(refNorm, rot);
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(refNorm);
                                                 }
                                                 else if (shapeTypeHit == 0) {
                                                     float sPosHit[3];
@@ -2352,9 +2757,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                                     refNorm[0] = sPosHit[0] -  sConstants.objAttributes[attrInd + 0];
                                                     refNorm[1] = sPosHit[1] -  sConstants.objAttributes[attrInd + 1];
                                                     refNorm[2] = sPosHit[2] -  sConstants.objAttributes[attrInd + 2];
-                                                    norm(refNorm);
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(refNorm);
                                                 } 
-                                                float cosi = dot(shadowDir, refNorm);
+                                                float cosi = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(shadowDir, refNorm);
                                                 // If normal is same direction as ray, then flip
                                                 if (cosi > 0) {
                                                     refNorm[0]*=-1.0f;refNorm[1]*=-1.0f;refNorm[2]*=-1.0f;
@@ -2368,19 +2773,29 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                                 float sinSq = RI*RI*(1.0f-cosi*cosi);
                                                 bool canRefract = 1.0f - sinSq > E;
 
+                                                float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                                                if (blur>0.0f) {
+                                                    float r1 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP(seeds, 0, 1.0f);
+                                                    r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                                    float r2 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::OMP(seeds, 0, 2.0f*M_PI);
+                                                    randSphereDir[0] = cos(r1)*cos(r2);
+                                                    randSphereDir[1] = cos(r1)*sin(r2);
+                                                    randSphereDir[2] = sin(r1);
+                                                }    
+
                                                 if (!canRefract) {
-                                                    shadowDir[0] = (shadowDir[0] - 2.0f*cosi*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                                    shadowDir[1] = (shadowDir[1] - 2.0f*cosi*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                                    shadowDir[2] = (shadowDir[2] - 2.0f*cosi*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                                    norm(shadowDir);
+                                                    shadowDir[0] = (shadowDir[0] - 2.0f*cosi*refNorm[0]) + blur*randSphereDir[0];
+                                                    shadowDir[1] = (shadowDir[1] - 2.0f*cosi*refNorm[1]) + blur*randSphereDir[1];
+                                                    shadowDir[2] = (shadowDir[2] - 2.0f*cosi*refNorm[2]) + blur*randSphereDir[2];
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(shadowDir);
                                                 }
                                                 else {
 
                                                     float refCalc = RI*cosi - (float)sqrt(1.0f-sinSq);
-                                                    shadowDir[0] = (RI*shadowDir[0] + refCalc*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                                    shadowDir[1] = (RI*shadowDir[1] + refCalc*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                                    shadowDir[2] = (RI*shadowDir[2] + refCalc*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                                    norm(shadowDir);					
+                                                    shadowDir[0] = (RI*shadowDir[0] + refCalc*refNorm[0]) + blur*randSphereDir[0];
+                                                    shadowDir[1] = (RI*shadowDir[1] + refCalc*refNorm[1]) + blur*randSphereDir[1];
+                                                    shadowDir[2] = (RI*shadowDir[2] + refCalc*refNorm[2]) + blur*randSphereDir[2];
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(shadowDir);					
                                                 }
                                                 continue;
                                             }                                           
@@ -2390,7 +2805,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                     }
 
                                     if (!shadowRayHit) {
-                                        float cosine = fabs(dot(directDir, randDir));
+                                        float cosine = fabs(skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(directDir, randDir));
                                         if (cosine > 0.01f) {
                                             shadowRays[pos]=1; 
                                             dir[0] = directDir[0];
@@ -2417,14 +2832,14 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                     areaSum += xDiff * yDiff * 2.0f;
                                     areaSum += zDiff * yDiff * 2.0f;
                                     areaSum += xDiff * zDiff * 2.0f;
-                                    float cosine = dot(dir, normals[pos]);
+                                    float cosine = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(dir, normals[pos]);
                                     cosine = cosine < 0.0001f ? 0.0001f : cosine;
 
                                     float diff[3];
                                     diff[0] =  sConstants.objAttributes[impAttrInd+0] - posHit[0];
                                     diff[1] =  sConstants.objAttributes[impAttrInd+1] - posHit[1];
                                     diff[2] =  sConstants.objAttributes[impAttrInd+2] - posHit[2];
-                                    float dirLen = sqrt(dot(diff, diff));
+                                    float dirLen = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(diff, diff));
 
 
                                     // AABB needs magic number for pdf calc, TODO: LOOK INTO, was too bright before
@@ -2436,7 +2851,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
                                     float diff[3] = { sConstants.objAttributes[impAttrInd+0]-posHit[0], 
                                                       sConstants.objAttributes[impAttrInd+1]-posHit[1], 
                                                       sConstants.objAttributes[impAttrInd+2]-posHit[2]};
-                                    auto distance_squared = dot(diff, diff);
+                                    auto distance_squared = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(diff, diff);
                                     auto cos_theta_max = sqrt(1.0f -  sConstants.objAttributes[impAttrInd+3] *  sConstants.objAttributes[impAttrInd+3] / distance_squared);
                                     // NaN check
                                     cos_theta_max = (cos_theta_max != cos_theta_max) ? 0.9999f : cos_theta_max;
@@ -2489,7 +2904,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
             newDir[1] = pos == numShapeHit-1 ? dir[1] : rayPositions[pos + 1][1] - rayPositions[pos][1];
             newDir[2] = pos == numShapeHit-1 ? dir[2] : rayPositions[pos + 1][2] - rayPositions[pos][2];
             if (pos < numShapeHit-1) {
-                norm(newDir);
+                skepu_userfunction_skepu_skel_1renderFunc_norm::OMP(newDir);
             }
 
             float emittance[3];
@@ -2499,7 +2914,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct OMP(skepu::Index2D ind, 
 
             float pdf_val = pdfVals[pos]; 
 
-            float cosine2 = dot(normal, newDir);
+            float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(normal, newDir);
 
             float scattering_pdf = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;// just cosine/pi for lambertian
             float multVecs[3] = {albedo[0]*finalCol[0],   // albedo*incoming 
@@ -2555,54 +2970,11 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
         float camPos[3] = { sConstants.camPos[0],  sConstants.camPos[1],  sConstants.camPos[2]};
         float rayPos[3] = {camPos[0], camPos[1], camPos[2]};
 
-        // Lambda Functions
-            auto dot  = [=](float vec1[3], float vec2[3]) {return vec1[0]*vec2[0] + vec1[1]*vec2[1] + vec1[2]*vec2[2];};
-            auto norm = [&](float vec[3]) {auto d = sqrt(dot(vec,vec)); vec[0]/=d; vec[1]/=d; vec[2]/=d; };
-            auto randBetween = [](RandomSeeds& seeds, float min, float max) {
-                uint64_t s0 = seeds.s1;
-                uint64_t s1 = seeds.s2;
-                uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-                double one_two = ((uint64_t)1 << 63) * (double)2.0;
-                float rand = xorshiro / one_two;
-                s1 ^= s0;
-                seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
-                seeds.s2 = (s1 << 28) | (s1 >> 36);
-
-                rand *= max - min;
-                rand += min;
-                return rand;
-            };
-            auto QMult = [&](float q1[4], float q2[4] ) {
-                auto A1 = (q1[3] + q1[1]) * (q2[1] + q2[2]);
-                auto A3 = (q1[0] - q1[2]) * (q2[0] + q2[3]);
-                auto A4 = (q1[0] + q1[2]) * (q2[0] - q2[3]);
-                auto A2 = A1 + A3 + A4;
-                auto A5 = (q1[3] - q1[1]) * (q2[1] - q2[2]);
-                A5 = (A5 + A2) / 2.0f;
-
-                auto Q1 = A5 - A1 + (q1[3] - q1[2]) * (q2[2] - q2[3]);
-                auto Q2 = A5 - A2 + (q1[1] + q1[0]) * (q2[1] + q2[0]);
-                auto Q3 = A5 - A3 + (q1[0] - q1[1]) * (q2[2] + q2[3]);
-                auto Q4 = A5 - A4 + (q1[3] + q1[2]) * (q2[0] - q2[1]);
-
-                q1[0] = Q1; q1[1] = Q2; q1[2] = Q3; q1[3] = Q4;
-            };
-            auto rotate = [&](float to_rotate[3], float q[4]) {
-
-                float p[4]  {0, to_rotate[0], to_rotate[1], to_rotate[2]};
-                float qR[4] {q[0],-q[1],-q[2],-q[3]};
-
-                QMult(p, q);
-                QMult(qR, p);
-                to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
-            };
-        // Lambda Functions
-
         // Rand Samp
         float rSamps[2] = {0.0f, 0.0f};
         if (sConstants.randSamp>0.001f) {
-            rSamps[0] = randBetween( seeds, -1, 1) * sConstants.randSamp;
-            rSamps[1] = randBetween( seeds, -1, 1) * sConstants.randSamp;
+            rSamps[0] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU( seeds, -1, 1) * sConstants.randSamp;
+            rSamps[1] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU( seeds, -1, 1) * sConstants.randSamp;
         }
 
         float back_col[3] = { 0,0,0};
@@ -2620,7 +2992,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
         pix[2] = camPos[2] +  sConstants.camForward[2]* sConstants.focalLength +  sConstants.camRight[2]*(pX+rSamps[0]) +  sConstants.camUp[2]*(pY+rSamps[1]);
 
         float rayDir[3] = {pix[0]-camPos[0], pix[1]-camPos[1], pix[2]-camPos[2]};
-        norm(rayDir);
+        skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(rayDir);
  
         // Store ray collisions and reverse through them (last num is shape index)
         float rayPositions[12][4];
@@ -2676,9 +3048,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                             float rPos[3] = {prevPos[0]-boxPos[0], prevPos[1]-boxPos[1], prevPos[2]-boxPos[2]};
                             float rot[4] = {sConstants.objAttributes[aInd + 9], sConstants.objAttributes[aInd + 10], sConstants.objAttributes[aInd + 11], sConstants.objAttributes[aInd + 12]};
                             if (rot[1] + rot[2] + rot[3] > E) {
-                                rotate(rDir,rot);
-                                norm(rDir); 
-                                rotate(rPos,rot);
+                                skepu_userfunction_skepu_skel_1renderFunc_rotate::CPU(rDir,rot);
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(rDir); 
+                                skepu_userfunction_skepu_skel_1renderFunc_rotate::CPU(rPos,rot);
                             }
                             rPos[0]+=boxPos[0];rPos[1]+=boxPos[1];rPos[2]+=boxPos[2];
 
@@ -2728,10 +3100,10 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                             L[0] =  sConstants.objAttributes[aInd + 0] - prevPos[0];
                             L[1] =  sConstants.objAttributes[aInd + 1] - prevPos[1];
                             L[2] =  sConstants.objAttributes[aInd + 2] - prevPos[2];
-                            float tca = dot(L, dir);
+                            float tca = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(L, dir);
                             if (tca < E)
                                 continue;
-                            float dsq = dot(L,L) - tca * tca;
+                            float dsq = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(L,L) - tca * tca;
                             float radiusSq =  sConstants.objAttributes[aInd + 3] *  sConstants.objAttributes[aInd + 3];
                             if (radiusSq - dsq < E)
                                 continue;
@@ -2802,14 +3174,14 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
 
                             // Transform Normal
                             float rot[4] = {sConstants.objAttributes[attrInd + 9], -sConstants.objAttributes[attrInd + 10], -sConstants.objAttributes[attrInd + 11], -sConstants.objAttributes[attrInd + 12]};
-                            rotate(normals[pos], rot);
-                            norm(normals[pos]);
+                            skepu_userfunction_skepu_skel_1renderFunc_rotate::CPU(normals[pos], rot);
+                            skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(normals[pos]);
                         }
                         else if (shapeTypeHit == 0) {
                             normals[pos][0] = posHit[0] -  sConstants.objAttributes[attrInd + 0];
                             normals[pos][1] = posHit[1] -  sConstants.objAttributes[attrInd + 1];
                             normals[pos][2] = posHit[2] -  sConstants.objAttributes[attrInd + 2];
-                            norm(normals[pos]);
+                            skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(normals[pos]);
                         }
                     }
                 
@@ -2822,7 +3194,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                             {
                                 // Rand vals
                                 for (int n = 0; n < 5; n++) 
-                                    rands[n] = randBetween( seeds, 0,1);
+                                    rands[n] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU( seeds, 0,1);
 
                                 float axis[3][3] = {{0,0,0}, {0,0,0}, {0,0,0}};
                                 // 2
@@ -2841,7 +3213,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                     axis[1][1] =  axis[2][2];
                                     axis[1][2] = -axis[2][1];
                                 }
-                                norm(axis[1]);
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(axis[1]);
                                 // 0
                                 // axis[0] = cross(axis[2], axis[1])
                                 axis[0][0] = axis[2][1]*axis[1][2] - axis[2][2]*axis[1][1];
@@ -2879,7 +3251,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                             float RI = 1.0f /  sConstants.matList[matInd][4];
                             float dirIn[3] = {dir[0], dir[1], dir[2]};
                             float refNorm[3] = {normals[pos][0], normals[pos][1], normals[pos][2]};
-                            float cosi = dot(dirIn, refNorm);
+                            float cosi = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(dirIn, refNorm);
 
                             // If normal is same direction as ray, then flip
                             if (cosi > 0) {
@@ -2899,28 +3271,38 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                             r0 = r0 * r0;
                             float schlick = r0 + (1.0f - r0) * (float)pow((1.0f - cosi), 5.0f);
 
-                            float schlickRand = randBetween(seeds, 0, 1);
+                            float schlickRand = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU(seeds, 0, 1);
+
+                            float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU(seeds, 0, 1.0f);
+                                r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU(seeds, 0, 2.0f*M_PI);
+                                randSphereDir[0] = cos(r1)*cos(r2);
+                                randSphereDir[1] = cos(r1)*sin(r2);
+                                randSphereDir[2] = sin(r1);
+                            }    
 
                             if (!canRefract || schlick > schlickRand) {
-                                dir[0] = (dirIn[0] - 2.0f*cosi*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                dir[1] = (dirIn[1] - 2.0f*cosi*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                dir[2] = (dirIn[2] - 2.0f*cosi*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                norm(dir);
+                                dir[0] = (dirIn[0] - 2.0f*cosi*refNorm[0]) + blur*randSphereDir[0];
+                                dir[1] = (dirIn[1] - 2.0f*cosi*refNorm[1]) + blur*randSphereDir[1];
+                                dir[2] = (dirIn[2] - 2.0f*cosi*refNorm[2]) + blur*randSphereDir[2];
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(dir);
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
-                                float cosine2 = dot(normals[pos], dir);
+                                float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(normals[pos], dir);
                                 pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;
                             }
                             else {
 
                                 float refCalc = RI*cosi - (float)sqrt(1.0f-sinSq);
-                                dir[0] = (RI*dirIn[0] + refCalc*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                dir[1] = (RI*dirIn[1] + refCalc*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                dir[2] = (RI*dirIn[2] + refCalc*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                norm(dir);
+                                dir[0] = (RI*dirIn[0] + refCalc*refNorm[0]) + blur*randSphereDir[0];
+                                dir[1] = (RI*dirIn[1] + refCalc*refNorm[1]) + blur*randSphereDir[1];
+                                dir[2] = (RI*dirIn[2] + refCalc*refNorm[2]) + blur*randSphereDir[2];
+                                skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(dir);
 
                                 // pdf val as scattering pdf, to make total pdf 1 as ray is specular
                                 // Danger here, scattering pdf was going to 0 for refracting and making colour explode
-                                float cosine2 = dot(normals[pos], dir);
+                                float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(normals[pos], dir);
                                 pdfVals[pos] = cosine2 < E ? E : cosine2 / M_PI;					
                             }
                         }
@@ -2931,13 +3313,24 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                             float dirIn[3] = {dir[0], dir[1], dir[2]};
                             float blur =  sConstants.matList[matInd][3];
 
-                            float prevDirNormalDot = dot(dirIn, normals[pos]);
+                            float prevDirNormalDot = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(dirIn, normals[pos]);
 
-                            dir[0] = (dirIn[0] - 2.0f*prevDirNormalDot*normals[pos][0])*(1.0f - blur) + blur*randDir[0];
-                            dir[1] = (dirIn[1] - 2.0f*prevDirNormalDot*normals[pos][1])*(1.0f - blur) + blur*randDir[1];
-                            dir[2] = (dirIn[2] - 2.0f*prevDirNormalDot*normals[pos][2])*(1.0f - blur) + blur*randDir[2];
+                            float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                            if (blur>0.0f) {
+                                float r1 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU(seeds, 0, 1.0f);
+                                r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                float r2 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU(seeds, 0, 2.0f*M_PI);
+                                randSphereDir[0] = cos(r1)*cos(r2);
+                                randSphereDir[1] = cos(r1)*sin(r2);
+                                randSphereDir[2] = sin(r1);
+                            }    
 
-                            float cosine2 = dot(dir, normals[pos]);
+                            dir[0] = (dirIn[0] - 2.0f*prevDirNormalDot*normals[pos][0]) + blur*randSphereDir[0];
+                            dir[1] = (dirIn[1] - 2.0f*prevDirNormalDot*normals[pos][1]) + blur*randSphereDir[1];
+                            dir[2] = (dirIn[2] - 2.0f*prevDirNormalDot*normals[pos][2]) + blur*randSphereDir[2];
+                            skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(dir);
+
+                            float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(dir, normals[pos]);
 
                             // Same as scattering pdf, to make pdf 1, as it is specular
                             pdfVals[pos] = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;
@@ -2985,7 +3378,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                         // Gen three new random variables : [0, 1]
                                         float aabbRands[3];
                                         for (int n = 0; n < 3; n++) 
-                                            aabbRands[n] = randBetween( seeds, 0,1);
+                                            aabbRands[n] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU( seeds, 0,1);
                                         randPos[0] = (1.0f - aabbRands[0])* sConstants.objAttributes[impAttrInd+3] + aabbRands[0]* sConstants.objAttributes[impAttrInd+6];
                                         randPos[1] = (1.0f - aabbRands[1])* sConstants.objAttributes[impAttrInd+4] + aabbRands[1]* sConstants.objAttributes[impAttrInd+7];
                                         randPos[2] = (1.0f - aabbRands[2])* sConstants.objAttributes[impAttrInd+5] + aabbRands[2]* sConstants.objAttributes[impAttrInd+8];	
@@ -2993,10 +3386,10 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                     else if ( sConstants.shapes[impShape][0] == 0) {
                                         // Gen three new random variables : [-1, 1]
                                         float sphereRands[3];
-                                        sphereRands[0] = randBetween( seeds, -1,1);
-                                        sphereRands[1] = randBetween( seeds, -1,1);
-                                        sphereRands[2] = randBetween( seeds, -1,1);
-                                        norm(sphereRands);
+                                        sphereRands[0] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU( seeds, -1,1);
+                                        sphereRands[1] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU( seeds, -1,1);
+                                        sphereRands[2] = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU( seeds, -1,1);
+                                        skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(sphereRands);
                                         
                                         randPos[0] =  sConstants.objAttributes[impAttrInd+0] + sphereRands[0]* sConstants.objAttributes[impAttrInd+3];
                                         randPos[1] =  sConstants.objAttributes[impAttrInd+1] + sphereRands[1]* sConstants.objAttributes[impAttrInd+3];
@@ -3007,7 +3400,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                     directDir[0] = randPos[0] - posHit[0];
                                     directDir[1] = randPos[1] - posHit[1];
                                     directDir[2] = randPos[2] - posHit[2];
-                                    float dirLen = sqrt(dot(directDir, directDir));
+                                    float dirLen = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(directDir, directDir));
                                     directDir[0] /= dirLen; directDir[1] /= dirLen; directDir[2] /= dirLen;  
 
                                     //
@@ -3032,9 +3425,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                             float rPos[3] = {posHit[0]-boxPos[0], posHit[1]-boxPos[1], posHit[2]-boxPos[2]};
                                             float rot[4] = {sConstants.objAttributes[aInd + 9], sConstants.objAttributes[aInd + 10], sConstants.objAttributes[aInd + 11], sConstants.objAttributes[aInd + 12]};
                                             if (rot[1] + rot[2] + rot[3] > E) {
-                                                rotate(rDir,rot);
-                                                norm(rDir); 
-                                                rotate(rPos,rot);
+                                                skepu_userfunction_skepu_skel_1renderFunc_rotate::CPU(rDir,rot);
+                                                skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(rDir); 
+                                                skepu_userfunction_skepu_skel_1renderFunc_rotate::CPU(rPos,rot);
                                             }
                                             rPos[0]+=boxPos[0];rPos[1]+=boxPos[1];rPos[2]+=boxPos[2];
 
@@ -3082,7 +3475,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                             float tca = L[0]*shadowDir[0] + L[1]*shadowDir[1] + L[2]*shadowDir[2];
                                             if (tca < E)
                                                 continue;
-                                            float dsq = dot(L,L) - tca * tca;
+                                            float dsq = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(L,L) - tca * tca;
                                             float radiusSq =  sConstants.objAttributes[aInd+3] *  sConstants.objAttributes[aInd+3];
                                             if (radiusSq - dsq < E)
                                                 continue;
@@ -3135,8 +3528,8 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
 
                                                     // Transform Normal
                                                     float rot[4] = {sConstants.objAttributes[attrInd + 9], -sConstants.objAttributes[attrInd + 10], -sConstants.objAttributes[attrInd + 11], -sConstants.objAttributes[attrInd + 12]};
-                                                    rotate(refNorm, rot);
-                                                    norm(refNorm);
+                                                    skepu_userfunction_skepu_skel_1renderFunc_rotate::CPU(refNorm, rot);
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(refNorm);
                                                 }
                                                 else if (shapeTypeHit == 0) {
                                                     float sPosHit[3];
@@ -3146,9 +3539,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                                     refNorm[0] = sPosHit[0] -  sConstants.objAttributes[attrInd + 0];
                                                     refNorm[1] = sPosHit[1] -  sConstants.objAttributes[attrInd + 1];
                                                     refNorm[2] = sPosHit[2] -  sConstants.objAttributes[attrInd + 2];
-                                                    norm(refNorm);
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(refNorm);
                                                 } 
-                                                float cosi = dot(shadowDir, refNorm);
+                                                float cosi = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(shadowDir, refNorm);
                                                 // If normal is same direction as ray, then flip
                                                 if (cosi > 0) {
                                                     refNorm[0]*=-1.0f;refNorm[1]*=-1.0f;refNorm[2]*=-1.0f;
@@ -3162,19 +3555,29 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                                 float sinSq = RI*RI*(1.0f-cosi*cosi);
                                                 bool canRefract = 1.0f - sinSq > E;
 
+                                                float randSphereDir[3] {0.0f, 0.0f, 0.0f};
+                                                if (blur>0.0f) {
+                                                    float r1 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU(seeds, 0, 1.0f);
+                                                    r1 = acos(2.0f*r1 - 1.0f) - M_PI/2.0f;
+                                                    float r2 = skepu_userfunction_skepu_skel_1renderFunc_randBetween::CPU(seeds, 0, 2.0f*M_PI);
+                                                    randSphereDir[0] = cos(r1)*cos(r2);
+                                                    randSphereDir[1] = cos(r1)*sin(r2);
+                                                    randSphereDir[2] = sin(r1);
+                                                }    
+
                                                 if (!canRefract) {
-                                                    shadowDir[0] = (shadowDir[0] - 2.0f*cosi*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                                    shadowDir[1] = (shadowDir[1] - 2.0f*cosi*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                                    shadowDir[2] = (shadowDir[2] - 2.0f*cosi*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                                    norm(shadowDir);
+                                                    shadowDir[0] = (shadowDir[0] - 2.0f*cosi*refNorm[0]) + blur*randSphereDir[0];
+                                                    shadowDir[1] = (shadowDir[1] - 2.0f*cosi*refNorm[1]) + blur*randSphereDir[1];
+                                                    shadowDir[2] = (shadowDir[2] - 2.0f*cosi*refNorm[2]) + blur*randSphereDir[2];
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(shadowDir);
                                                 }
                                                 else {
 
                                                     float refCalc = RI*cosi - (float)sqrt(1.0f-sinSq);
-                                                    shadowDir[0] = (RI*shadowDir[0] + refCalc*refNorm[0])*(1.0f - blur) + blur*randDir[0];
-                                                    shadowDir[1] = (RI*shadowDir[1] + refCalc*refNorm[1])*(1.0f - blur) + blur*randDir[1];
-                                                    shadowDir[2] = (RI*shadowDir[2] + refCalc*refNorm[2])*(1.0f - blur) + blur*randDir[2];
-                                                    norm(shadowDir);					
+                                                    shadowDir[0] = (RI*shadowDir[0] + refCalc*refNorm[0]) + blur*randSphereDir[0];
+                                                    shadowDir[1] = (RI*shadowDir[1] + refCalc*refNorm[1]) + blur*randSphereDir[1];
+                                                    shadowDir[2] = (RI*shadowDir[2] + refCalc*refNorm[2]) + blur*randSphereDir[2];
+                                                    skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(shadowDir);					
                                                 }
                                                 continue;
                                             }                                           
@@ -3184,7 +3587,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                     }
 
                                     if (!shadowRayHit) {
-                                        float cosine = fabs(dot(directDir, randDir));
+                                        float cosine = fabs(skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(directDir, randDir));
                                         if (cosine > 0.01f) {
                                             shadowRays[pos]=1; 
                                             dir[0] = directDir[0];
@@ -3211,14 +3614,14 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                     areaSum += xDiff * yDiff * 2.0f;
                                     areaSum += zDiff * yDiff * 2.0f;
                                     areaSum += xDiff * zDiff * 2.0f;
-                                    float cosine = dot(dir, normals[pos]);
+                                    float cosine = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(dir, normals[pos]);
                                     cosine = cosine < 0.0001f ? 0.0001f : cosine;
 
                                     float diff[3];
                                     diff[0] =  sConstants.objAttributes[impAttrInd+0] - posHit[0];
                                     diff[1] =  sConstants.objAttributes[impAttrInd+1] - posHit[1];
                                     diff[2] =  sConstants.objAttributes[impAttrInd+2] - posHit[2];
-                                    float dirLen = sqrt(dot(diff, diff));
+                                    float dirLen = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(diff, diff));
 
 
                                     // AABB needs magic number for pdf calc, TODO: LOOK INTO, was too bright before
@@ -3230,7 +3633,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
                                     float diff[3] = { sConstants.objAttributes[impAttrInd+0]-posHit[0], 
                                                       sConstants.objAttributes[impAttrInd+1]-posHit[1], 
                                                       sConstants.objAttributes[impAttrInd+2]-posHit[2]};
-                                    auto distance_squared = dot(diff, diff);
+                                    auto distance_squared = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(diff, diff);
                                     auto cos_theta_max = sqrt(1.0f -  sConstants.objAttributes[impAttrInd+3] *  sConstants.objAttributes[impAttrInd+3] / distance_squared);
                                     // NaN check
                                     cos_theta_max = (cos_theta_max != cos_theta_max) ? 0.9999f : cos_theta_max;
@@ -3283,7 +3686,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
             newDir[1] = pos == numShapeHit-1 ? dir[1] : rayPositions[pos + 1][1] - rayPositions[pos][1];
             newDir[2] = pos == numShapeHit-1 ? dir[2] : rayPositions[pos + 1][2] - rayPositions[pos][2];
             if (pos < numShapeHit-1) {
-                norm(newDir);
+                skepu_userfunction_skepu_skel_1renderFunc_norm::CPU(newDir);
             }
 
             float emittance[3];
@@ -3293,7 +3696,7 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE ReturnStruct CPU(skepu::Index2D ind, 
 
             float pdf_val = pdfVals[pos]; 
 
-            float cosine2 = dot(normal, newDir);
+            float cosine2 = skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(normal, newDir);
 
             float scattering_pdf = cosine2 < 0.00001f ? 0.00001f : cosine2 / M_PI;// just cosine/pi for lambertian
             float multVecs[3] = {albedo[0]*finalCol[0],   // albedo*incoming 
@@ -3526,32 +3929,32 @@ void Renderers::SkePURender() {
         int numPixels = xRes*yRes;
         vec3 l_vec = vec3(0.2125,0.7154,0.0721);
         for (int ind =0; ind < numPixels; ind++) {
-            exposure += 9.6f*l_vec.dot(preScreen[ind]/sampleCount)/numPixels;
+            exposure += l_vec.dot(preScreen[ind]);
         }
+        exposure *= 9.6f / xRes*yRes*sampleCount;
     }
 
-    #include <mutex>
     void Renderers::OMPAutoExp() {
         exposure = 0.0f;
         int numPixels = xRes*yRes;
         vec3 l_vec = vec3(0.2125,0.7154,0.0721);
-        std::mutex lock;
 
         #pragma omp parallel for
         for (int ind =0; ind < numPixels; ind++) {
-            std::lock_guard<std::mutex> guard(lock);
-            exposure += 9.6f*l_vec.dot(preScreen[ind]/sampleCount)/numPixels;
+            #pragma omp atomic
+            exposure += l_vec.dot(preScreen[ind]);
         }
+        exposure *= 9.6f / xRes*yRes*sampleCount;
     }
 
-    static float SkePUExposureFuncCalc(vec3 col, float div) {
-        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/div;
+    static float SkePUExposureFuncCalc(vec3 col) {
+        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z);
     }
 
     
 struct skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncCalc
 {
-constexpr static size_t totalArity = 2;
+constexpr static size_t totalArity = 1;
 constexpr static size_t outArity = 1;
 constexpr static bool indexed = 0;
 constexpr static bool usesPRNG = 0;
@@ -3559,7 +3962,7 @@ constexpr static size_t randomCount = SKEPU_NO_RANDOM;
 using IndexType = void;
 using ElwiseArgs = std::tuple<class vec3>;
 using ContainerArgs = std::tuple<>;
-using UniformArgs = std::tuple<float>;
+using UniformArgs = std::tuple<>;
 typedef std::tuple<> ProxyTags;
 constexpr static skepu::AccessMode anyAccessMode[] = {
 };
@@ -3575,9 +3978,9 @@ constexpr static bool prefersMatrix = 0;
 #define VARIANT_CPU(block)
 #define VARIANT_OPENMP(block)
 #define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(class vec3 col, float div)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(class vec3 col)
 {
-        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/div;
+        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z);
    
 }
 #undef SKEPU_USING_BACKEND_CUDA
@@ -3589,9 +3992,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(class vec3 col, f
 #define VARIANT_CPU(block)
 #define VARIANT_OPENMP(block) block
 #define VARIANT_CUDA(block)
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(class vec3 col, float div)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(class vec3 col)
 {
-        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/div;
+        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z);
    
 }
 #undef SKEPU_USING_BACKEND_OMP
@@ -3603,9 +4006,9 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(class vec3 col, float div)
 #define VARIANT_CPU(block) block
 #define VARIANT_OPENMP(block)
 #define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(class vec3 col, float div)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(class vec3 col)
 {
-        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z)/div;
+        return (0.2125f * col.x + 0.7154 * col.y + 0.0721 * col.z);
    
 }
 #undef SKEPU_USING_BACKEND_CPU
@@ -3682,13 +4085,12 @@ void Renderers::SkePUAutoExp() {
             screen(ind) = preScreen[ind];
         }
 
-        // Configure SkePU
         auto spec = skepu::BackendSpec{skepu::Backend::typeFromString(skepuBackend)};
         spec.activateBackend();
         skepu::backend::MapReduce<1, skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncCalc, skepu_userfunction_skepu_skel_0exposureFunc_add_float, decltype(&skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float), decltype(&skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float_ReduceOnly), void> exposureFunc(skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float, skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float_ReduceOnly);
         exposureFunc.setBackend(spec);
 
-        exposure = 9.6f * exposureFunc(screen, numPixels*sampleCount);
+        exposure = 9.6f * exposureFunc(screen) / numPixels*sampleCount;
     }
 
 

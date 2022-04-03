@@ -1,5 +1,5 @@
 
-__global__ void skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float(float* skepu_output, skepu::PRNG::Placeholder,class vec3 *col, float div,  size_t skepu_w2, size_t skepu_w3, size_t skepu_w4, size_t skepu_n, size_t skepu_base, skepu::StrideList<1> skepu_strides)
+__global__ void skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCalc_add_float(float* skepu_output, skepu::PRNG::Placeholder,class vec3 *col,  size_t skepu_w2, size_t skepu_w3, size_t skepu_w4, size_t skepu_n, size_t skepu_base, skepu::StrideList<1> skepu_strides)
 {
 	extern __shared__ float sdata_skepu_skel_0[];
 	
@@ -15,7 +15,7 @@ __global__ void skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCal
 	if (skepu_i < skepu_n)
 	{
 		
-		skepu_result = skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncCalc::CU(col[skepu_i * skepu_strides[0]], div);
+		skepu_result = skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncCalc::CU(col[skepu_i * skepu_strides[0]]);
 		//skepu_output[skepu_i] = skepu_res;
 		skepu_i += skepu_gridSize;
 	}
@@ -23,7 +23,7 @@ __global__ void skepu_skel_0_SkePURenderers_MapReduceKernel_SkePUExposureFuncCal
 	while (skepu_i < skepu_n)
 	{
 		
-		auto skepu_tempMap = skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncCalc::CU(col[skepu_i * skepu_strides[0]], div);
+		auto skepu_tempMap = skepu_userfunction_skepu_skel_0exposureFunc_SkePUExposureFuncCalc::CU(col[skepu_i * skepu_strides[0]]);
 		skepu_result = skepu_userfunction_skepu_skel_0exposureFunc_add_float::CU(skepu_result, skepu_tempMap);
 		skepu_i += skepu_gridSize;
 	}

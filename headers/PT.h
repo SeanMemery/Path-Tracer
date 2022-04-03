@@ -28,6 +28,7 @@ public:
     void ImGui();
     void ProcessInput();
     void PostProcess();
+    void UpdateScreen();
 
     void SaveImage(char * name);
     void RefreshScreen();
@@ -36,7 +37,7 @@ public:
     const char* displayNames[8] = {"Image", "Denoised Col", "Normal", "Albedo 1", "Albedo 2", "Direct Light", "World Pos", "Target Col"};
 
     // ImGui Vars
-    int objEdit, lRateInt;
+    int objEdit;
     char fileName[32], weightsName[32], weightsNameSave[32], sceneName[32];
     float resPerc, screenPerc;
     SDL_Window* sdlWindow;

@@ -12,12 +12,12 @@ class DenoiserNN;
 class Scene;
 
 // Settings
-extern int xRes, yRes, xScreen, yScreen, maxDepth, currentRenderer, rayCount, sampleCount;
-extern bool denoising, moving, quit, rendering, refresh;
+extern int xRes, yRes, xScreen, yScreen, maxDepth, currentRenderer, rayCount, sampleCount, trainingCount;
+extern bool denoising, moving, quit, rendering, refresh, trainingLimitBool;
 extern unsigned int mainTexture; 
 extern std::string skepuBackend;
-extern float randSamp;
-extern double denoiseTime, epochTime, exposureTime;
+extern float randSamp, avgTMR, lRateInt, lRateIntMax;
+extern double denoiseTime, epochTime, exposureTime, trainingTime;
 
 // Total times
 extern double renderTime, imguiTime, postProcessTime, totalTime, screenUpdateTime, totalRenderTime;
@@ -74,7 +74,7 @@ struct DenoisingInf {
 };
 
 extern DenoisingInf* denoisingInf;
-extern float* layerTwoValues; // 10 vals per pixel
+extern float* layerTwoValues;   // 10 vals per pixel
 extern float* layerThreeValues; // 10 vals per pixel
 
 struct Constants {
@@ -197,6 +197,28 @@ struct SkePUBPOut {
 
 };
 
+struct FPConstants {
+
+    int RESH, RESV;
+    int samples;
+    float onetwo[360];
+    float twothree[100];
+    float threefour[70];
+
+};
+struct BPConstants {
+    int RESH, RESV;
+    int samples, denoisingN;
+    float learningRate;
+};
+
+struct CUDADenoiseConstants {
+
+    int RESH, RESV;
+    int denoisingN;
+
+};
+
 namespace GLOBALS {
 
     static void DeleteScreens(bool delTarget) {
@@ -215,6 +237,7 @@ namespace GLOBALS {
 
         delete layerTwoValues;
         delete layerThreeValues;
+
     }
 
     static void InitScreens(bool initTarget) {
@@ -235,6 +258,8 @@ namespace GLOBALS {
         layerThreeValues = new float[10*xRes*yRes];
     }
 };
+
+
 
 
 
