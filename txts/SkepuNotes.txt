@@ -16,13 +16,13 @@
     - FAILURE: seems to only change brightness of screen, very weird
 
 5. Done some strange things to light sampling to make it look more even with indirect lighting, basically jut threw in the distance to shape TODO FIX!!!
+    - Removed this, looks more natural but still not perfect
 
 6. Very strange issue with direct light. Image looks a lot better when sampling (i think) incorrectly, i was accidentely using the rand dir to send shadow rays
     instead of the direct direction, which causes the images to be dar too bright. So,
     - Shadow ray sent along rand dir until reaching distance light is away from ray origin
     - if hit something that isnt the light, then carry on that direction
     - if hit nothing or hit light then change direction towards light
-    - makes no sense !!!! 
     - Looking at it again, doesnt look right, going back to directDir
 
 7. Main issue with SkePU is bening unable to store values in memory, they need to be in paramater space whcih is very limited

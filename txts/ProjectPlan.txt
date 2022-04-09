@@ -1,9 +1,0 @@
-
-
-1) Basic Neural Renderer (Reduce/MapReduce)(MapOverlap for CNN)(MapPairs/MapPairsReduce for NN too)
-2) Denoising Alg (Reduce ?)
-3) Point Cloud Rendering (?)(solving ODEs to update positions ? )
-4) Ray Marching Volume Rendering (MapReduce on getting nearest shape from list, map get distances then reduce with min )
-
-
-

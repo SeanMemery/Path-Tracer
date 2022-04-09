@@ -969,6 +969,234 @@
 
     }
     
+struct skepu_userfunction_skepu_skel_1renderFunc_dot
+{
+constexpr static size_t totalArity = 2;
+constexpr static size_t outArity = 1;
+constexpr static bool indexed = 0;
+constexpr static bool usesPRNG = 0;
+constexpr static size_t randomCount = SKEPU_NO_RANDOM;
+using IndexType = void;
+using ElwiseArgs = std::tuple<>;
+using ContainerArgs = std::tuple<>;
+using UniformArgs = std::tuple<float *, float *>;
+typedef std::tuple<> ProxyTags;
+constexpr static skepu::AccessMode anyAccessMode[] = {
+};
+
+using Ret = float;
+
+constexpr static bool prefersMatrix = 0;
+
+#define SKEPU_USING_BACKEND_CUDA 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(float * x, float * y)
+{
+        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+   
+}
+#undef SKEPU_USING_BACKEND_CUDA
+
+#define SKEPU_USING_BACKEND_OMP 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block) block
+#define VARIANT_CUDA(block)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(float * x, float * y)
+{
+        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+   
+}
+#undef SKEPU_USING_BACKEND_OMP
+
+#define SKEPU_USING_BACKEND_CPU 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block) block
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(float * x, float * y)
+{
+        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+   
+}
+#undef SKEPU_USING_BACKEND_CPU
+};
+
+
+struct skepu_userfunction_skepu_skel_1renderFunc_randBetween
+{
+constexpr static size_t totalArity = 3;
+constexpr static size_t outArity = 1;
+constexpr static bool indexed = 0;
+constexpr static bool usesPRNG = 0;
+constexpr static size_t randomCount = SKEPU_NO_RANDOM;
+using IndexType = void;
+using ElwiseArgs = std::tuple<>;
+using ContainerArgs = std::tuple<>;
+using UniformArgs = std::tuple<RandomSeeds &, float, float>;
+typedef std::tuple<> ProxyTags;
+constexpr static skepu::AccessMode anyAccessMode[] = {
+};
+
+using Ret = float;
+
+constexpr static bool prefersMatrix = 0;
+
+#define SKEPU_USING_BACKEND_CUDA 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(RandomSeeds & seeds, float min, float max)
+{
+        uint64_t s0 = seeds.s1;
+        uint64_t s1 = seeds.s2;
+        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
+        double one_two = ((uint64_t)1 << 63) * (double)2.0;
+        float rand = xorshiro / one_two;
+        s1 ^= s0;
+        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
+        seeds.s2 = (s1 << 28) | (s1 >> 36);
+        rand *= max - min;
+        rand += min;
+        return rand;
+   
+}
+#undef SKEPU_USING_BACKEND_CUDA
+
+#define SKEPU_USING_BACKEND_OMP 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block) block
+#define VARIANT_CUDA(block)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(RandomSeeds & seeds, float min, float max)
+{
+        uint64_t s0 = seeds.s1;
+        uint64_t s1 = seeds.s2;
+        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
+        double one_two = ((uint64_t)1 << 63) * (double)2.0;
+        float rand = xorshiro / one_two;
+        s1 ^= s0;
+        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
+        seeds.s2 = (s1 << 28) | (s1 >> 36);
+        rand *= max - min;
+        rand += min;
+        return rand;
+   
+}
+#undef SKEPU_USING_BACKEND_OMP
+
+#define SKEPU_USING_BACKEND_CPU 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block) block
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(RandomSeeds & seeds, float min, float max)
+{
+        uint64_t s0 = seeds.s1;
+        uint64_t s1 = seeds.s2;
+        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
+        double one_two = ((uint64_t)1 << 63) * (double)2.0;
+        float rand = xorshiro / one_two;
+        s1 ^= s0;
+        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
+        seeds.s2 = (s1 << 28) | (s1 >> 36);
+        rand *= max - min;
+        rand += min;
+        return rand;
+   
+}
+#undef SKEPU_USING_BACKEND_CPU
+};
+
+
+struct skepu_userfunction_skepu_skel_1renderFunc_norm
+{
+constexpr static size_t totalArity = 1;
+constexpr static size_t outArity = 1;
+constexpr static bool indexed = 0;
+constexpr static bool usesPRNG = 0;
+constexpr static size_t randomCount = SKEPU_NO_RANDOM;
+using IndexType = void;
+using ElwiseArgs = std::tuple<>;
+using ContainerArgs = std::tuple<>;
+using UniformArgs = std::tuple<float *>;
+typedef std::tuple<> ProxyTags;
+constexpr static skepu::AccessMode anyAccessMode[] = {
+};
+
+using Ret = void;
+
+constexpr static bool prefersMatrix = 0;
+
+#define SKEPU_USING_BACKEND_CUDA 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ void CU(float * vec)
+{
+        auto d = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::CU(vec,vec)); 
+        vec[0]/=d; 
+        vec[1]/=d; 
+        vec[2]/=d; 
+   
+}
+#undef SKEPU_USING_BACKEND_CUDA
+
+#define SKEPU_USING_BACKEND_OMP 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block)
+#define VARIANT_OPENMP(block) block
+#define VARIANT_CUDA(block)
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE void OMP(float * vec)
+{
+        auto d = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(vec,vec)); 
+        vec[0]/=d; 
+        vec[1]/=d; 
+        vec[2]/=d; 
+   
+}
+#undef SKEPU_USING_BACKEND_OMP
+
+#define SKEPU_USING_BACKEND_CPU 1
+#undef VARIANT_CPU
+#undef VARIANT_OPENMP
+#undef VARIANT_CUDA
+#define VARIANT_CPU(block) block
+#define VARIANT_OPENMP(block)
+#define VARIANT_CUDA(block) block
+static inline SKEPU_ATTRIBUTE_FORCE_INLINE void CPU(float * vec)
+{
+        auto d = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(vec,vec)); 
+        vec[0]/=d; 
+        vec[1]/=d; 
+        vec[2]/=d; 
+   
+}
+#undef SKEPU_USING_BACKEND_CPU
+};
+
+
 struct skepu_userfunction_skepu_skel_1renderFunc_QMult
 {
 constexpr static size_t totalArity = 2;
@@ -1140,234 +1368,6 @@ static inline SKEPU_ATTRIBUTE_FORCE_INLINE void CPU(float * to_rotate, float * q
         skepu_userfunction_skepu_skel_1renderFunc_QMult::CPU(p, q);
         skepu_userfunction_skepu_skel_1renderFunc_QMult::CPU(qR, p);
         to_rotate[0]=qR[1];to_rotate[1]=qR[2];to_rotate[2]=qR[3];
-   
-}
-#undef SKEPU_USING_BACKEND_CPU
-};
-
-
-struct skepu_userfunction_skepu_skel_1renderFunc_randBetween
-{
-constexpr static size_t totalArity = 3;
-constexpr static size_t outArity = 1;
-constexpr static bool indexed = 0;
-constexpr static bool usesPRNG = 0;
-constexpr static size_t randomCount = SKEPU_NO_RANDOM;
-using IndexType = void;
-using ElwiseArgs = std::tuple<>;
-using ContainerArgs = std::tuple<>;
-using UniformArgs = std::tuple<RandomSeeds &, float, float>;
-typedef std::tuple<> ProxyTags;
-constexpr static skepu::AccessMode anyAccessMode[] = {
-};
-
-using Ret = float;
-
-constexpr static bool prefersMatrix = 0;
-
-#define SKEPU_USING_BACKEND_CUDA 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block)
-#define VARIANT_OPENMP(block)
-#define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(RandomSeeds & seeds, float min, float max)
-{
-        uint64_t s0 = seeds.s1;
-        uint64_t s1 = seeds.s2;
-        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-        double one_two = ((uint64_t)1 << 63) * (double)2.0;
-        float rand = xorshiro / one_two;
-        s1 ^= s0;
-        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
-        seeds.s2 = (s1 << 28) | (s1 >> 36);
-        rand *= max - min;
-        rand += min;
-        return rand;
-   
-}
-#undef SKEPU_USING_BACKEND_CUDA
-
-#define SKEPU_USING_BACKEND_OMP 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block)
-#define VARIANT_OPENMP(block) block
-#define VARIANT_CUDA(block)
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(RandomSeeds & seeds, float min, float max)
-{
-        uint64_t s0 = seeds.s1;
-        uint64_t s1 = seeds.s2;
-        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-        double one_two = ((uint64_t)1 << 63) * (double)2.0;
-        float rand = xorshiro / one_two;
-        s1 ^= s0;
-        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
-        seeds.s2 = (s1 << 28) | (s1 >> 36);
-        rand *= max - min;
-        rand += min;
-        return rand;
-   
-}
-#undef SKEPU_USING_BACKEND_OMP
-
-#define SKEPU_USING_BACKEND_CPU 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block) block
-#define VARIANT_OPENMP(block)
-#define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(RandomSeeds & seeds, float min, float max)
-{
-        uint64_t s0 = seeds.s1;
-        uint64_t s1 = seeds.s2;
-        uint64_t xorshiro = (((s0 + s1) << 17) | ((s0 + s1) >> 47)) + s0;
-        double one_two = ((uint64_t)1 << 63) * (double)2.0;
-        float rand = xorshiro / one_two;
-        s1 ^= s0;
-        seeds.s1 = (((s0 << 49) | ((s0 >> 15))) ^ s1 ^ (s1 << 21));
-        seeds.s2 = (s1 << 28) | (s1 >> 36);
-        rand *= max - min;
-        rand += min;
-        return rand;
-   
-}
-#undef SKEPU_USING_BACKEND_CPU
-};
-
-
-struct skepu_userfunction_skepu_skel_1renderFunc_dot
-{
-constexpr static size_t totalArity = 2;
-constexpr static size_t outArity = 1;
-constexpr static bool indexed = 0;
-constexpr static bool usesPRNG = 0;
-constexpr static size_t randomCount = SKEPU_NO_RANDOM;
-using IndexType = void;
-using ElwiseArgs = std::tuple<>;
-using ContainerArgs = std::tuple<>;
-using UniformArgs = std::tuple<float *, float *>;
-typedef std::tuple<> ProxyTags;
-constexpr static skepu::AccessMode anyAccessMode[] = {
-};
-
-using Ret = float;
-
-constexpr static bool prefersMatrix = 0;
-
-#define SKEPU_USING_BACKEND_CUDA 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block)
-#define VARIANT_OPENMP(block)
-#define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ float CU(float * x, float * y)
-{
-        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
-   
-}
-#undef SKEPU_USING_BACKEND_CUDA
-
-#define SKEPU_USING_BACKEND_OMP 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block)
-#define VARIANT_OPENMP(block) block
-#define VARIANT_CUDA(block)
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE float OMP(float * x, float * y)
-{
-        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
-   
-}
-#undef SKEPU_USING_BACKEND_OMP
-
-#define SKEPU_USING_BACKEND_CPU 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block) block
-#define VARIANT_OPENMP(block)
-#define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE float CPU(float * x, float * y)
-{
-        return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
-   
-}
-#undef SKEPU_USING_BACKEND_CPU
-};
-
-
-struct skepu_userfunction_skepu_skel_1renderFunc_norm
-{
-constexpr static size_t totalArity = 1;
-constexpr static size_t outArity = 1;
-constexpr static bool indexed = 0;
-constexpr static bool usesPRNG = 0;
-constexpr static size_t randomCount = SKEPU_NO_RANDOM;
-using IndexType = void;
-using ElwiseArgs = std::tuple<>;
-using ContainerArgs = std::tuple<>;
-using UniformArgs = std::tuple<float *>;
-typedef std::tuple<> ProxyTags;
-constexpr static skepu::AccessMode anyAccessMode[] = {
-};
-
-using Ret = void;
-
-constexpr static bool prefersMatrix = 0;
-
-#define SKEPU_USING_BACKEND_CUDA 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block)
-#define VARIANT_OPENMP(block)
-#define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE __device__ void CU(float * vec)
-{
-        auto d = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::CU(vec,vec)); 
-        vec[0]/=d; 
-        vec[1]/=d; 
-        vec[2]/=d; 
-   
-}
-#undef SKEPU_USING_BACKEND_CUDA
-
-#define SKEPU_USING_BACKEND_OMP 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block)
-#define VARIANT_OPENMP(block) block
-#define VARIANT_CUDA(block)
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE void OMP(float * vec)
-{
-        auto d = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::OMP(vec,vec)); 
-        vec[0]/=d; 
-        vec[1]/=d; 
-        vec[2]/=d; 
-   
-}
-#undef SKEPU_USING_BACKEND_OMP
-
-#define SKEPU_USING_BACKEND_CPU 1
-#undef VARIANT_CPU
-#undef VARIANT_OPENMP
-#undef VARIANT_CUDA
-#define VARIANT_CPU(block) block
-#define VARIANT_OPENMP(block)
-#define VARIANT_CUDA(block) block
-static inline SKEPU_ATTRIBUTE_FORCE_INLINE void CPU(float * vec)
-{
-        auto d = sqrt(skepu_userfunction_skepu_skel_1renderFunc_dot::CPU(vec,vec)); 
-        vec[0]/=d; 
-        vec[1]/=d; 
-        vec[2]/=d; 
    
 }
 #undef SKEPU_USING_BACKEND_CPU
