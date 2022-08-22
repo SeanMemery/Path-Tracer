@@ -3,4 +3,5 @@ Created to compare development and performance of backends:
   - Sequential CPU
   - Parallel OpenMP CPU
   - CUDA GPU
+  
  Backends made from scratch and using the library [SkePU](https://skepu.github.io/), for comparison. 
